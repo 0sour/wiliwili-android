@@ -15,9 +15,12 @@ set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(USE_SHARED_MBEDTLS_LIBRARY OFF CACHE BOOL "" FORCE)
 set(USE_STATIC_MBEDTLS_LIBRARY ON CACHE BOOL "" FORCE)
+# mbedtls must stay static even though BUILD_SHARED_LIBS is ON for SDL/wiliwili
+set(BUILD_SHARED_LIBS OFF)
 FetchContent_Declare(mbedtls
         URL https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/mbedtls-3.5.2.tar.gz)
 FetchContent_MakeAvailable(mbedtls)
+set(BUILD_SHARED_LIBS ON)
 
 # Pre-seed detection for curl's CMake and cpr's FindMbedTLS module
 set(MBEDTLS_INCLUDE_DIRS "${mbedtls_SOURCE_DIR}/include" CACHE INTERNAL "")

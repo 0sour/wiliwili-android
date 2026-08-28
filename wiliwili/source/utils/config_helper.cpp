@@ -519,6 +519,8 @@ void ProgramConfig::load() {
 
     // 初始化自定义手柄按键映射
 #ifdef IOS
+#elif defined(__ANDROID__)
+    // SDL manages controllers on Android
 #elif defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
     brls::DesktopPlatform::GAMEPAD_DB = getConfigDir() + "/gamecontrollerdb.txt";
 #endif
