@@ -4,6 +4,9 @@
 
 #ifdef IOS
 #include <CoreFoundation/CoreFoundation.h>
+#elif defined(__ANDROID__)
+#include <unistd.h>
+#include <SDL2/SDL.h>
 #elif defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
 #include <unistd.h>
 #include <borealis/platforms/desktop/desktop_platform.hpp>
@@ -1145,6 +1148,9 @@ std::string ProgramConfig::getConfigDir() {
         return std::string{buffer} + "/Library/Preferences";
     }
     return "../Library/Preferences";
+#elif defined(__ANDROID__)
+    const char* internalPath = SDL_AndroidGetInternalStoragePath();
+    return std::string(internalPath ? internalPath : ".") + "/config/wiliwili";
 #else
 #ifdef _DEBUG
     char currentPathBuffer[PATH_MAX];
@@ -1186,6 +1192,8 @@ void ProgramConfig::exit(char* argv[]) {
 #ifdef IOS
 #elif defined(PS4)
 #elif __PSV__
+#elif defined(__ANDROID__)
+// Restarting through execv() is not possible on Android, do nothing
 #elif defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
     if (!brls::DesktopPlatform::RESTART_APP) return;
 #ifdef __linux__

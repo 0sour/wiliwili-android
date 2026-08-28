@@ -21,9 +21,15 @@ repo/
 /winrt/AppxManifest.xml
 libromfs-generator
 build-*
-android-project
 *.deb
 *.dmp
+
+# Android port
+/mpv-deps/
+android-project/app/libs/
+android-project/app/.cxx/
+android-project/app/wiliwili.jks
+android-project/local.properties
 # Github Copilot
 .github/copilot-instructions.md
 .github/instructions/

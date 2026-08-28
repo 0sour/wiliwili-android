@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace = "cn.xfangfang.wiliwili"
+    compileSdkVersion 34
+
+    defaultConfig {
+        applicationId "cn.xfangfang.wiliwili"
+        minSdkVersion 26
+        targetSdkVersion 34
+        versionCode 10600
+        versionName "1.6.0"
+        // r26 supports android-21 and later, keep in sync with minSdkVersion
+        ndkVersion "26.1.10909125"
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_PLATFORM=android-26",
+                          "-DANDROID_STL=c++_shared",
+                          "-DCMAKE_WARN_DEPRECATED=FALSE",
+                          "-DBRLS_UNITY_BUILD=ON",
+                          "-DUSE_GLES3=ON",
+                          "-DDISABLE_WEBP=ON",
+                          "-DAPP_PLATFORM_LIB=-lmpv"
+                abiFilters 'arm64-v8a', 'x86_64'
+            }
+        }
+    }
+
+    signingConfigs {
+        release {
+            // Generated in CI (see .github/workflows/android.yml), password is public on purpose
+            storeFile file("wiliwili.jks")
+            storePassword 'wiliwili'
+            keyAlias 'wiliwili'
+            keyPassword 'wiliwili'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    // SDL opens native libraries by path under nativeLibraryDir,
+    // so they must be extracted from the APK
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    applicationVariants.all { variant ->
+        tasks["merge${variant.name.capitalize()}Assets"]
+            .dependsOn("externalNativeBuild${variant.name.capitalize()}")
+    }
+
+    if (!project.hasProperty('EXCLUDE_NATIVE_LIBS')) {
+        sourceSets.main {
+            jniLibs.srcDir 'libs'
+        }
+        externalNativeBuild {
+            cmake {
+                path 'jni/CMakeLists.txt'
+                version = '3.22.1'
+            }
+        }
+    }
+
+    lint {
+        abortOnError = false
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+}
