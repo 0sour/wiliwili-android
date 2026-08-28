@@ -30,8 +30,9 @@ jobs:
 
       - name: Build libromfs-generator (host tool)
         run: |
-          bash library/borealis/build_libromfs_generator.sh
-          cp library/borealis/libromfs-generator ./libromfs-generator
+          cd library/borealis
+          bash build_libromfs_generator.sh
+          cp libromfs-generator ../../libromfs-generator
 
       - name: Prepare prebuilt libmpv
         run: bash .ci/prepare_mpv.sh
