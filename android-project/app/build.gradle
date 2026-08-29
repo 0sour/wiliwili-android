@@ -12,8 +12,8 @@ android {
         targetSdkVersion 34
         versionCode 10600
         versionName "1.6.0"
-        // r26 supports android-21 and later, keep in sync with minSdkVersion
-        ndkVersion "26.1.10909125"
+        // r27 builds 16KB-page aligned libraries and supports minSdk 21+
+        ndkVersion "27.2.12479018"
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_PLATFORM=android-26",
@@ -23,7 +23,7 @@ android {
                           "-DUSE_GLES3=ON",
                           "-DDISABLE_WEBP=ON",
                           "-DAPP_PLATFORM_LIB=-lmpv"
-                abiFilters 'arm64-v8a', 'x86_64'
+                abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
             }
         }
     }

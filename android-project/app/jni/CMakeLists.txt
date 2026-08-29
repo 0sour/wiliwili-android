@@ -7,6 +7,10 @@ set(SDL_DIR "${WILIWILI_DIR}/library/borealis/library/lib/extern/SDL")
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "")
 
+# Align ELF segments to 16KB memory pages so the app also loads on
+# Android 15+ devices running 16KB page kernels
+add_link_options(-Wl,-z,max-page-size=16384)
+
 # ---------------------------------------------------------------------------
 # mbedtls: TLS backend for cpr/curl, built from source with the NDK toolchain
 # ---------------------------------------------------------------------------
