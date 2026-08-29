@@ -8,7 +8,7 @@ set -euo pipefail
 
 MPV_AAR_URL="https://github.com/jarnedemeulemeester/libmpv-android/releases/download/v1.0.0/libmpv-release.aar"
 MPV_HEADERS_URL="https://github.com/mpv-player/mpv/archive/refs/tags/v0.41.0.tar.gz"
-ABIS="arm64-v8a x86_64"
+ABIS="armeabi-v7a arm64-v8a x86_64"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 JNILIBS="$ROOT/android-project/app/libs"
