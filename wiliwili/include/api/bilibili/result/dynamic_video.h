@@ -66,7 +66,8 @@ public:
     bool has_update;
     std::string face;
     std::string uname;
-    uint64_t mid;
+    // The web-dynamic/uplist endpoint started returning mid as a JSON string.
+    std::string mid;
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(DynamicUpResult, has_update, face, uname, mid);
 

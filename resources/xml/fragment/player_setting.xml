@@ -101,6 +101,9 @@
                     <brls:BooleanCell
                             id="setting/history/log"/>
 
+                    <brls:BooleanCell
+                            id="setting/second/screen"/>
+
                 </brls:Box>
                 <brls:Header
                         id="setting/video/custom/header"

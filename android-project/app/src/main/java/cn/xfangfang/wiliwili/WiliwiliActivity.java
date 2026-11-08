@@ -6,6 +6,8 @@ import org.libsdl.app.BorealisHandler;
 import org.libsdl.app.PlatformUtils;
 import org.libsdl.app.SDLActivity;
 
+import cn.xfangfang.wiliwili.secondscreen.SecondScreenManager;
+
 public class WiliwiliActivity extends SDLActivity
 {
 
@@ -15,10 +17,26 @@ public class WiliwiliActivity extends SDLActivity
 
         // Receive brightness changes from borealis
         PlatformUtils.borealisHandler = new BorealisHandler();
+
+        // Own the Presentation on the secondary display (if the device has one)
+        SecondScreenManager.attach(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        SecondScreenManager.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        SecondScreenManager.onPause();
+        super.onPause();
     }
 
     @Override
     protected void onDestroy() {
+        SecondScreenManager.detach();
         super.onDestroy();
 
         // borealis heavily uses static variables, the activity cannot be

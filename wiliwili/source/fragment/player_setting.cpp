@@ -12,6 +12,7 @@
 #include "utils/shader_helper.hpp"
 #include "utils/number_helper.hpp"
 #include "utils/activity_helper.hpp"
+#include "utils/second_screen.hpp"
 #include "activity/player_activity.hpp"
 #include "fragment/player_setting.hpp"
 #include "view/danmaku_core.hpp"
@@ -118,6 +119,8 @@ void PlayerSetting::setupCommonSetting() {
     auto& conf  = ProgramConfig::instance();
     auto locale = brls::Application::getLocale();
 
+    this->btnSecondScreen = dynamic_cast<brls::BooleanCell*>(this->getView("setting/second/screen"));
+
     /// Upload history record
     btnHistory->init("wiliwili/setting/app/playback/report"_i18n,
                      conf.getSettingItem(SettingItem::HISTORY_REPORT, true), [](bool value) {
@@ -125,6 +128,22 @@ void PlayerSetting::setupCommonSetting() {
                          VideoDetail::REPORT_HISTORY = value;
                          GA("player_setting", {{"history", value ? "true" : "false"}});
                      });
+
+    /// Second screen (only available on devices with a Presentation display)
+    if (this->btnSecondScreen) {
+        if (!wiliwili::second_screen::isDisplayAvailable()) {
+            this->btnSecondScreen->setVisibility(brls::Visibility::GONE);
+        } else {
+            this->btnSecondScreen->init("wiliwili/setting/app/playback/second_screen"_i18n,
+                                        conf.getBoolOption(SettingItem::PLAYER_SECOND_SCREEN), [](bool value) {
+                                            wiliwili::second_screen::setEnabled(value);
+                                            brls::Application::notify(
+                                                value ? "wiliwili/player/second_screen_on"_i18n
+                                                      : "wiliwili/player/second_screen_off"_i18n);
+                                            GA("player_setting", {{"second_screen", value ? "true" : "false"}});
+                                        });
+        }
+    }
 
     /// Skip opening credits
     btnSkip->init("wiliwili/player/setting/common/skip_opening_credits"_i18n,

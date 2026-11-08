@@ -3,6 +3,7 @@
 //
 
 #include <utility>
+#include <algorithm>
 #include <borealis/core/thread.hpp>
 #include <borealis/core/touch/tap_gesture.hpp>
 #include <borealis/views/applet_frame.hpp>
@@ -15,6 +16,7 @@
 #include "utils/config_helper.hpp"
 #include "utils/dialog_helper.hpp"
 #include "utils/number_helper.hpp"
+#include "utils/activity_helper.hpp"
 #include "presenter/comment_related.hpp"
 #include "utils/shortcut_helper.hpp"
 #include "view/qr_image.hpp"
@@ -22,6 +24,8 @@
 #include "view/grid_dropdown.hpp"
 #include "view/subtitle_core.hpp"
 #include "view/mpv_core.hpp"
+#include "view/danmaku_core.hpp"
+#include "utils/second_screen.hpp"
 
 class DataSourceCommentList : public RecyclingGridDataSource, public CommentAction {
 public:
@@ -55,6 +59,8 @@ public:
     }
 
     size_t getItemCount() override { return dataList.size() + 2; }
+
+    const bilibili::VideoCommentListResult& getData() const { return dataList; }
 
     void onItemSelected(RecyclingGrid* recycler, size_t index) override {
         if (index == 0) {
@@ -199,6 +205,30 @@ private:
 
 void BasePlayerActivity::onContentAvailable() { this->setCommonData(); }
 
+void BasePlayerActivity::onResume() {
+    brls::Activity::onResume();
+    // 从其他页面返回时重新接管副屏
+    this->startSecondScreenSession();
+}
+
+void BasePlayerActivity::startSecondScreenSession() {
+    if (!wiliwili::second_screen::isEnabled()) {
+        wiliwili::second_screen::closeSession(this->secondScreenSession);
+        this->secondScreenSession = 0;
+        return;
+    }
+
+    this->secondScreenSession = wiliwili::second_screen::openSession(wiliwili::second_screen::Mode::VIDEO);
+    wiliwili::second_screen::setCommandHandler(
+        this->secondScreenSession,
+        [this](wiliwili::second_screen::Command cmd, int64_t arg, const std::string& text) {
+            this->handleSecondScreenCommand(cmd, arg, text);
+        });
+    this->pushSecondScreenVideoInfo();
+    this->pushSecondScreenPlayerState();
+    this->pushSecondScreenCachedComments();
+}
+
 void BasePlayerActivity::setCommonData() {
     // 视频评论
     recyclingGrid->registerCell("Cell", []() { return VideoComment::create(); });
@@ -289,8 +319,31 @@ void BasePlayerActivity::setCommonData() {
     eventSubscribeID = MPV_E->subscribe([this](MpvEventEnum event) {
         // 上一次报告历史记录的时间点
         static int64_t lastProgress = MPVCore::instance().video_progress;
+
+        // 双屏：播放状态变化时立即同步
+        switch (event) {
+            case MpvEventEnum::MPV_PAUSE:
+            case MpvEventEnum::MPV_RESUME:
+            case MpvEventEnum::VIDEO_SPEED_CHANGE:
+            case MpvEventEnum::VIDEO_VOLUME_CHANGE:
+            case MpvEventEnum::VIDEO_MUTE:
+            case MpvEventEnum::VIDEO_UNMUTE:
+            case MpvEventEnum::UPDATE_DURATION:
+            case MpvEventEnum::LOADING_END:
+            case MpvEventEnum::START_FILE:
+                this->pushSecondScreenPlayerState();
+                break;
+            default:
+                break;
+        }
+
         switch (event) {
             case MpvEventEnum::UPDATE_PROGRESS: {
+                // 双屏：进度最多每秒推送一次
+                if (MPVCore::instance().video_progress != this->secondScreenPosition) {
+                    this->secondScreenPosition = MPVCore::instance().video_progress;
+                    this->pushSecondScreenPlayerState();
+                }
                 // 每15秒同步一次进度
                 if (lastProgress + 15 < MPVCore::instance().video_progress) {
                     lastProgress = MPVCore::instance().video_progress;
@@ -396,6 +449,22 @@ void BasePlayerActivity::setCommonData() {
     if (brls::Application::ORIGINAL_WINDOW_HEIGHT < 720) video->hideStatusLabel();
 
     video->hideOSDLockButton();
+
+    // 双屏：所有播放器子类都会调用 setCommonData，在这里初始化副屏
+    // 这些节点可能被自定义主题省略，使用可选查找
+    this->videoLeftBox  = dynamic_cast<brls::Box*>(this->getView("video_detail_left_box"));
+    this->videoRightBox = dynamic_cast<brls::Box*>(this->getView("video_detail_right_box"));
+    this->videoInfoBox  = dynamic_cast<brls::Box*>(this->getView("video_detail_info_box"));
+    this->videoCloseButton = this->getView("button/close");
+
+    this->secondScreenSubscribeID = APP_E->subscribe([this](const std::string& event, void*) {
+        if (event != wiliwili::second_screen::EVENT_CHANGED) return;
+        this->updateSecondScreenLayout();
+        this->startSecondScreenSession();
+    });
+
+    this->updateSecondScreenLayout();
+    this->startSecondScreenSession();
 }
 
 void BasePlayerActivity::showCollectionDialog(uint64_t id, int videoType) {
@@ -726,6 +795,10 @@ void BasePlayerActivity::onVideoPlayUrl(const bilibili::VideoUrlResult& result) 
 
     brls::Logger::debug("BasePlayerActivity::onVideoPlayUrl done");
 
+    // 双屏：清晰度列表与播放状态已就绪
+    this->pushSecondScreenVideoInfo();
+    this->pushSecondScreenPlayerState();
+
     // 根据配置决定是否自动全屏
     if (ProgramConfig::instance().getBoolOption(SettingItem::PLAYER_AUTO_FULLSCREEN) &&
         !this->video->isFullscreen()) {
@@ -734,6 +807,34 @@ void BasePlayerActivity::onVideoPlayUrl(const bilibili::VideoUrlResult& result) 
 }
 
 void BasePlayerActivity::onCommentInfo(const bilibili::VideoCommentResultWrapper& result) {
+    // 双屏：把评论同步到副屏（置顶评论只在第一页携带）
+    if (wiliwili::second_screen::isEnabled()) {
+        bool reset = result.requestIndex == 0;
+        std::vector<wiliwili::second_screen::CommentItem> items;
+        auto append = [&items](const bilibili::VideoCommentResult& comment) {
+            wiliwili::second_screen::CommentItem item;
+            item.name = comment.member.uname;
+            item.text = comment.content.message;
+            item.time = comment.reply_control.time_desc;
+            if (item.time.empty()) item.time = wiliwili::sec2FullDate(comment.ctime);
+            item.avatar  = comment.member.avatar;
+            for (const auto& [token, emote] : comment.content.emote) {
+                item.emotes.push_back({token, emote.url, emote.size});
+            }
+            item.like    = comment.like;
+            item.replies = comment.rcount;
+            item.up      = comment.member.is_uploader;
+            item.top     = comment.top;
+            items.push_back(std::move(item));
+        };
+        if (reset) {
+            for (const auto& comment : result.top_replies) append(comment);
+        }
+        for (const auto& comment : result.replies) append(comment);
+        wiliwili::second_screen::pushComments(reset, result.cursor.is_end, result.cursor.next,
+                                              result.cursor.all_count, items);
+    }
+
     auto* datasource = dynamic_cast<DataSourceCommentList*>(recyclingGrid->getDataSource());
     if (!datasource && result.requestIndex == 0) {
         // 第一页评论
@@ -762,7 +863,340 @@ void BasePlayerActivity::onCommentInfo(const bilibili::VideoCommentResultWrapper
 }
 
 void BasePlayerActivity::onRequestCommentError(const std::string& error) {
-    brls::sync([this, error]() { this->recyclingGrid->setError(error); });
+    brls::sync([this, error]() {
+        this->recyclingGrid->setError(error);
+        wiliwili::second_screen::pushStatus(error.empty() ? "评论加载失败" : error);
+    });
+}
+
+void BasePlayerActivity::updateSecondScreenLayout() {
+    if (!this->videoLeftBox || !this->videoRightBox || !this->video) return;
+
+    bool enabled = wiliwili::second_screen::isEnabled();
+    float width = brls::Application::getStyle().getMetric("wiliwili/player/width");
+
+    if (enabled) {
+        // 上屏只保留视频：隐藏右侧面板、下方信息区、底部按键提示和关闭按钮
+        this->videoRightBox->setVisibility(brls::Visibility::GONE);
+        if (this->videoInfoBox) this->videoInfoBox->setVisibility(brls::Visibility::GONE);
+        if (this->videoCloseButton) this->videoCloseButton->setVisibility(brls::Visibility::GONE);
+        this->appletFrame->setFooterVisibility(brls::Visibility::GONE);
+        this->videoLeftBox->setWidth(brls::View::AUTO);
+        this->videoLeftBox->setGrow(1);
+        this->video->setWidthPercentage(100);
+
+        // 焦点若停在将被隐藏的区域，转交给视频
+        bool focusHidden = false;
+        for (brls::View* view = brls::Application::getCurrentFocus(); view; view = view->getParent()) {
+            if (view == this->videoRightBox || view == this->videoInfoBox) {
+                focusHidden = true;
+                break;
+            }
+        }
+        if (focusHidden) brls::Application::giveFocus(this->video);
+        // 双屏模式下上屏没有可用控件，焦点直接交给视频，按键交给下屏
+        brls::Application::giveFocus(this->video);
+    } else {
+        this->videoRightBox->setVisibility(brls::Visibility::VISIBLE);
+        if (this->videoInfoBox) this->videoInfoBox->setVisibility(brls::Visibility::VISIBLE);
+        if (this->videoCloseButton) this->videoCloseButton->setVisibility(brls::Visibility::VISIBLE);
+        this->appletFrame->setFooterVisibility(brls::Visibility::VISIBLE);
+        this->videoLeftBox->setWidth(width);
+        this->videoLeftBox->setGrow(0);
+        // setWidthPercentage 会同时设置 minWidth 百分比，恢复时需要清掉
+        this->video->setMinWidth(brls::View::AUTO);
+        this->video->setWidth(width);
+    }
+    brls::Logger::debug("[second-screen] layout: enabled={}", enabled);
+}
+
+void BasePlayerActivity::pushSecondScreenVideoInfo() {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    wiliwili::second_screen::VideoInfo info;
+    if (dynamic_cast<PlayerSeasonActivity*>(this) != nullptr) {
+        info.title = this->seasonInfo.season_title;
+        if (!this->episodeResult.title.empty()) {
+            if (!info.title.empty()) info.title += " - ";
+            info.title += this->episodeResult.title;
+        }
+        info.up      = this->seasonInfo.up_info.uname;
+        info.bvid    = this->episodeResult.bvid;
+        info.desc    = this->seasonInfo.season_desc;
+        info.pubdate = this->seasonInfo.publish.pub_time_show;
+        info.view    = this->seasonInfo.stat.views;
+        info.danmaku = this->seasonInfo.stat.danmakus;
+        info.like    = this->seasonInfo.stat.likes;
+        info.coin    = this->seasonInfo.stat.coins;
+        info.favorite = this->seasonInfo.stat.favorite;
+    } else {
+        info.title   = this->videoDetailResult.title;
+        info.up      = this->videoDetailResult.owner.name;
+        info.bvid    = this->videoDetailResult.bvid;
+        info.desc    = this->videoDetailResult.desc;
+        info.pubdate = wiliwili::sec2FullDate(this->videoDetailResult.pubdate);
+        info.view    = this->videoDetailResult.stat.view;
+        info.danmaku = this->videoDetailResult.stat.danmaku;
+        info.like    = this->videoDetailResult.stat.like;
+        info.coin    = this->videoDetailResult.stat.coin;
+        info.favorite = this->videoDetailResult.stat.favorite;
+        info.share   = this->videoDetailResult.stat.share;
+    }
+
+    const auto& codes  = this->videoUrlResult.accept_quality;
+    const auto& labels = this->videoUrlResult.accept_description;
+    for (size_t i = 0; i < codes.size() && i < labels.size(); i++) {
+        info.qualities.push_back({codes[i], labels[i]});
+    }
+    info.qualityIndex = this->getQualityIndex();
+
+    // 上一集/下一集是否可用
+    if (dynamic_cast<PlayerSeasonActivity*>(this) != nullptr) {
+        int current = static_cast<int>(this->episodeResult.index);
+        int total   = static_cast<int>(this->episodeList.size());
+        for (int i = current - 1; i >= 0; --i) {
+            if (this->episodeList[i].id != 0) {
+                info.hasPrev = true;
+                break;
+            }
+        }
+        for (int i = current + 1; i < total; ++i) {
+            if (this->episodeList[i].id != 0) {
+                info.hasNext = true;
+                break;
+            }
+        }
+    } else if (this->videoDetailResult.pages.size() > 1) {
+        info.hasPrev = this->videoDetailPage.page > 1;
+        info.hasNext = this->videoDetailPage.page < this->videoDetailResult.pages.size();
+    }
+
+    // 会话恢复时播放器数据可能尚未回填，空标题不要覆盖下屏已有的标题
+    if (info.title.empty()) return;
+
+    wiliwili::second_screen::pushVideoInfo(info);
+
+    // 副屏的推荐/分集列表也在这里一起刷新（从其他页面返回时同样适用）
+    if (dynamic_cast<PlayerSeasonActivity*>(this) != nullptr) {
+        this->pushSecondScreenEpisodeList();
+    } else {
+        this->pushSecondScreenRelatedList();
+        this->pushSecondScreenPageList(this->videoDetailResult.pages);
+    }
+}
+
+void BasePlayerActivity::pushSecondScreenRelatedList() {
+    if (!wiliwili::second_screen::isEnabled() || this->videDetailRelated.empty()) return;
+
+    std::vector<wiliwili::second_screen::RelatedItem> items;
+    items.reserve(this->videDetailRelated.size());
+    for (const auto& video : this->videDetailRelated) {
+        wiliwili::second_screen::RelatedItem item;
+        item.title    = video.title;
+        item.up       = video.owner.name;
+        item.bvid     = video.bvid;
+        item.cover    = video.pic;
+        item.duration = video.duration;
+        item.view     = video.stat.view;
+        items.push_back(std::move(item));
+    }
+    wiliwili::second_screen::pushRelatedVideos(items);
+}
+
+void BasePlayerActivity::pushSecondScreenPageList(const bilibili::VideoDetailPageListResult& pages) {
+    if (!wiliwili::second_screen::isEnabled() || pages.size() <= 1) return;
+
+    std::vector<wiliwili::second_screen::EpisodeItem> items;
+    items.reserve(pages.size());
+    for (size_t i = 0; i < pages.size(); i++) {
+        wiliwili::second_screen::EpisodeItem item;
+        item.index    = static_cast<int>(i);
+        item.title    = fmt::format("P{} {}", pages[i].page, pages[i].part);
+        item.duration = pages[i].duration;
+        item.playable = true;
+        items.push_back(std::move(item));
+    }
+    wiliwili::second_screen::pushEpisodes(items);
+}
+
+void BasePlayerActivity::pushSecondScreenEpisodeList() {
+    if (!wiliwili::second_screen::isEnabled() || this->episodeList.size() <= 1) return;
+
+    std::vector<wiliwili::second_screen::EpisodeItem> items;
+    items.reserve(this->episodeList.size());
+    for (size_t i = 0; i < this->episodeList.size(); i++) {
+        const auto& episode = this->episodeList[i];
+        wiliwili::second_screen::EpisodeItem item;
+        item.index    = static_cast<int>(i);
+        item.title    = episode.title;
+        item.subtitle = episode.long_title;
+        // 番剧接口的 duration 单位是毫秒
+        item.duration = episode.duration / 1000;
+        item.playable = episode.id != 0;
+        items.push_back(std::move(item));
+    }
+    wiliwili::second_screen::pushEpisodes(items);
+}
+
+void BasePlayerActivity::pushSecondScreenCachedComments() {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    auto* datasource = dynamic_cast<DataSourceCommentList*>(this->recyclingGrid->getDataSource());
+    if (!datasource || datasource->getData().empty()) return;
+
+    std::vector<wiliwili::second_screen::CommentItem> items;
+    items.reserve(datasource->getData().size());
+    for (const auto& comment : datasource->getData()) {
+        wiliwili::second_screen::CommentItem item;
+        item.name = comment.member.uname;
+        item.text = comment.content.message;
+        item.time = comment.reply_control.time_desc;
+        if (item.time.empty()) item.time = wiliwili::sec2FullDate(comment.ctime);
+        item.avatar  = comment.member.avatar;
+        for (const auto& [token, emote] : comment.content.emote) {
+            item.emotes.push_back({token, emote.url, emote.size});
+        }
+        item.like    = comment.like;
+        item.replies = comment.rcount;
+        item.up      = comment.member.is_uploader;
+        item.top     = comment.top;
+        items.push_back(std::move(item));
+    }
+    wiliwili::second_screen::pushComments(true, this->end, this->commentRequestIndex, 0, items);
+}
+
+void BasePlayerActivity::pushSecondScreenPlayerState() {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    auto& mpv = MPVCore::instance();
+    wiliwili::second_screen::PlayerState state;
+    state.playing      = mpv.video_playing;
+    state.paused       = mpv.video_paused;
+    state.danmaku      = DanmakuCore::DANMAKU_ON;
+    state.position     = mpv.video_progress;
+    state.duration     = mpv.duration;
+    state.speed        = mpv.video_speed;
+    state.qualityIndex = this->getQualityIndex();
+    state.volume       = mpv.volume;
+    state.mirror       = MPVCore::VIDEO_MIRROR;
+    state.aspect       = MPVCore::VIDEO_ASPECT;
+
+    auto* platform = brls::Application::getPlatform();
+    if (platform && platform->canSetBacklightBrightness()) {
+        state.canSetBrightness = true;
+        state.brightness =
+            static_cast<int64_t>(platform->getBacklightBrightness() * 100.0f + 0.5f);
+    }
+
+    wiliwili::second_screen::pushPlayerState(state);
+}
+
+void BasePlayerActivity::handleSecondScreenCommand(wiliwili::second_screen::Command cmd, int64_t arg,
+                                                   const std::string& text) {
+    using Command = wiliwili::second_screen::Command;
+    switch (cmd) {
+        case Command::PLAY_PAUSE:
+            if (MPVCore::instance().video_paused) {
+                MPVCore::instance().resume();
+            } else {
+                MPVCore::instance().pause();
+            }
+            break;
+        case Command::SEEK:
+            MPVCore::instance().seek(arg);
+            break;
+        case Command::SEEK_RELATIVE:
+            MPVCore::instance().seekRelative(arg);
+            break;
+        case Command::SET_SPEED:
+            this->video->setSpeed(static_cast<float>(arg) / 100.0f);
+            break;
+        case Command::SET_QUALITY: {
+            int code = static_cast<int>(arg);
+            const auto& codes = this->videoUrlResult.accept_quality;
+            if (code <= 0 || std::find(codes.begin(), codes.end(), code) == codes.end()) break;
+            if (ProgramConfig::instance().getCSRF().empty() && code >= 32) {
+                std::string message = "wiliwili/home/common/no_login"_i18n;
+                brls::Application::notify(message);
+                wiliwili::second_screen::pushStatus(message);
+                this->pushSecondScreenPlayerState();
+                break;
+            }
+            BasePlayerActivity::defaultQuality = code;
+            ProgramConfig::instance().setSettingItem(SettingItem::VIDEO_QUALITY, code);
+            this->updateVideoLink();
+            break;
+        }
+        case Command::TOGGLE_DANMAKU:
+            this->video->toggleDanmaku();
+            this->pushSecondScreenPlayerState();
+            break;
+        case Command::LOAD_MORE_COMMENTS:
+            this->requestVideoComment(std::to_string(this->getAid()));
+            break;
+        case Command::EXIT_PLAYER:
+            brls::Application::popActivity();
+            break;
+        case Command::OPEN_BV:
+            if (!text.empty()) Intent::openBV(text);
+            break;
+        case Command::PLAY_INDEX:
+            this->onIndexChange(static_cast<size_t>(arg));
+            break;
+        case Command::PREV_EPISODE:
+        case Command::NEXT_EPISODE: {
+            int delta = cmd == Command::NEXT_EPISODE ? 1 : -1;
+            if (dynamic_cast<PlayerSeasonActivity*>(this) != nullptr) {
+                int index = static_cast<int>(this->episodeResult.index) + delta;
+                int total = static_cast<int>(this->episodeList.size());
+                // 跳过“正片/花絮”等不可播放的分组标题
+                while (index >= 0 && index < total && this->episodeList[index].id == 0) {
+                    index += delta;
+                }
+                if (index >= 0 && index < total) {
+                    this->onIndexChange(static_cast<size_t>(index));
+                }
+            } else {
+                int index = static_cast<int>(this->videoDetailPage.page) - 1 + delta;
+                if (index >= 0 && index < static_cast<int>(this->videoDetailResult.pages.size())) {
+                    this->onIndexChange(static_cast<size_t>(index));
+                }
+            }
+            break;
+        }
+        case Command::SET_VOLUME: {
+            int64_t volume = std::max<int64_t>(0, std::min<int64_t>(100, arg));
+            MPVCore::instance().setVolume(volume);
+            this->pushSecondScreenPlayerState();
+            break;
+        }
+        case Command::SET_BRIGHTNESS: {
+            auto* platform = brls::Application::getPlatform();
+            if (!platform || !platform->canSetBacklightBrightness()) break;
+            float value = static_cast<float>(std::max<int64_t>(0, std::min<int64_t>(100, arg))) / 100.0f;
+            platform->setBacklightBrightness(value);
+            this->pushSecondScreenPlayerState();
+            break;
+        }
+        case Command::TOGGLE_MIRROR:
+            MPVCore::instance().setMirror(!MPVCore::VIDEO_MIRROR);
+            this->pushSecondScreenPlayerState();
+            break;
+        case Command::SET_ASPECT: {
+            static const std::vector<std::string> options = {"-1", "-2", "-3", "4:3", "16:9"};
+            if (std::find(options.begin(), options.end(), text) == options.end()) break;
+            MPVCore::instance().setAspect(text);
+            ProgramConfig::instance().setSettingItem(SettingItem::PLAYER_ASPECT, text);
+            this->pushSecondScreenPlayerState();
+            break;
+        }
+        case Command::SET_SECOND_SCREEN:
+            wiliwili::second_screen::setEnabled(arg != 0);
+            if (arg == 0 && this->video) this->video->showOSD(true);
+            break;
+        default:
+            break;
+    }
 }
 
 void BasePlayerActivity::onVideoOnlineCount(const bilibili::VideoOnlineTotal& result) {
@@ -840,6 +1274,9 @@ BasePlayerActivity::~BasePlayerActivity() {
     // 取消监控mpv
     MPV_E->unsubscribe(eventSubscribeID);
     APP_E->unsubscribe(customEventSubscribeID);
+    APP_E->unsubscribe(secondScreenSubscribeID);
+    // 双屏：只关闭自己的会话，避免误关栈中其他播放器的副屏
+    wiliwili::second_screen::closeSession(this->secondScreenSession);
     // 停止视频播放
     this->video->stop();
 }

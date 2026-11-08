@@ -13,6 +13,8 @@
 
 #include "utils/config_helper.hpp"
 #include "utils/activity_helper.hpp"
+#include "utils/diag_logger.hpp"
+#include "utils/second_screen.hpp"
 #include "view/mpv_core.hpp"
 
 #if defined(IOS) || defined(__ANDROID__)
@@ -36,11 +38,20 @@ int main(int argc, char* argv[]) {
     // Load cookies and settings
     ProgramConfig::instance().init();
 
+    // Mirror logs to a rotating file (Android diagnostics, 7-day retention)
+    wiliwili::startFileLogger();
+
     // Init the app and i18n
     if (!brls::Application::init()) {
         brls::Logger::error("Unable to init application");
         return EXIT_FAILURE;
     }
+
+    // Periodic health lines + main-thread stall watchdog
+    wiliwili::startStallWatchdog();
+
+    // Now safe to dispatch second-screen hot-plug events on APP_E
+    wiliwili::second_screen::setAppRunning();
 
     // Return directly to the desktop when closing the application (only for NX)
     brls::Application::getPlatform()->exitToHomeMode(true);
@@ -70,7 +81,7 @@ int main(int argc, char* argv[]) {
         //        Intent::openBV("BV15z4y1Z734");  // 4K HDR 视频
         //        Intent::openBV("BV1qM4y1w716");  // 8K
         //        Intent::openBV("BV1PN4y1G7u2");  // up主视频自动跳转番剧
-        //        Intent::openBV("BV1sK411s7zq");  // 多P视频测试
+        //        Intent::openSeasonByEpId(323434);// 测试电影
         //        Intent::openBV("BV1Cg411j76F");  // 多字幕测试
         //        Intent::openBV("BV1A44y1u7PF");  // 测试FFMPEG在switch上的bug（加载时间过长）
         //        Intent::openBV("BV1eD4y1b7Jv");  // 测试 MPV 在switch上的bug（长时间播放崩溃）

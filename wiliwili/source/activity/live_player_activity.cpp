@@ -12,16 +12,20 @@
 
 #include <vector>
 #include <chrono>
+#include <algorithm>
+#include <cstdio>
 
 #include "utils/shader_helper.hpp"
 #include "utils/config_helper.hpp"
 #include "utils/dialog_helper.hpp"
+#include "utils/second_screen.hpp"
 
 #include "view/video_view.hpp"
 #include "view/live_core.hpp"
 #include "view/grid_dropdown.hpp"
 #include "view/qr_image.hpp"
 #include "view/mpv_core.hpp"
+#include "view/danmaku_core.hpp"
 #include "view/user_info.hpp"
 #include "view/live_danmaku_item.hpp"
 
@@ -81,13 +85,15 @@ LiveActivity::LiveActivity(int roomid, const std::string& name, const std::strin
 }
 
 void LiveActivity::setCommonData() {
-    // 重置播放器
-    MPVCore::instance().reset();
-
     // 清空自定义着色器
     ShaderHelper::instance().clearShader(false);
 
     this->maxSidebarDanmakuCount = ProgramConfig::instance().getIntOption(SettingItem::LIVE_SIDEBAR_DANMAKU_COUNT);
+
+    // 双屏：主屏不再显示弹幕侧边栏
+    if (wiliwili::second_screen::isEnabled()) {
+        this->maxSidebarDanmakuCount = 0;
+    }
 
     event_id    = APP_E->subscribe([this](const std::string& event, void* data) {
         if (event == VideoView::QUALITY_CHANGE) {
@@ -95,6 +101,21 @@ void LiveActivity::setCommonData() {
         }
     });
     tl_event_id = MPV_E->subscribe([this](MpvEventEnum e) {
+        if (wiliwili::second_screen::isEnabled()) {
+            switch (e) {
+                case MPV_PAUSE:
+                case MPV_RESUME:
+                case VIDEO_VOLUME_CHANGE:
+                case VIDEO_MUTE:
+                case VIDEO_UNMUTE:
+                case LOADING_END:
+                case START_FILE:
+                    this->pushSecondScreenPlayerState();
+                    break;
+                default:
+                    break;
+            }
+        }
         if (e == UPDATE_PROGRESS) {
             if (!liveRoomPlayInfo.live_time) return;
             std::chrono::time_point<std::chrono::system_clock> _zero;
@@ -152,14 +173,11 @@ void LiveActivity::setVideoQuality() {
 
 void LiveActivity::onContentAvailable()
 {   
+    // VideoView 已通过 BRLS_BIND 绑定完成，此时再重置播放器，避免在视图
+    // 创建/注册事件之前触发 MPV 事件造成黑屏或残留状态。
+    MPVCore::instance().reset();
+
     // 设置全屏按钮图标
-    // 首先查找并绑定video组件，这在两种布局中都存在
-    this->video = (VideoView*)this->getView("video");
-    if (!this->video) {
-        brls::Logger::error("LiveActivity: 找不到video视图");
-        return;
-    }
-    
     this->video->setFullscreenIcon(this->video->isFullscreen());
 
     this->video->registerCommonActions(this);
@@ -273,6 +291,22 @@ void LiveActivity::onContentAvailable()
 
     GA("open_live", {{"id", std::to_string(this->liveData.roomid)}})
     GA("open_live", {{"live_id", std::to_string(this->liveData.roomid)}})
+
+    // 双屏：注册开关监听，开启当前直播间的副屏会话
+    this->secondScreenSubscribeID = APP_E->subscribe([this](const std::string& event, void*) {
+        if (event == wiliwili::second_screen::EVENT_CHANGED) this->onSecondScreenChanged();
+    });
+    if (wiliwili::second_screen::isEnabled()) {
+        this->onSecondScreenChanged();
+    }
+}
+
+void LiveActivity::onResume() {
+    brls::Activity::onResume();
+    // 从其他页面返回时重新接管副屏
+    if (wiliwili::second_screen::isEnabled()) {
+        this->onSecondScreenChanged();
+    }
 }
 
 std::vector<std::string> LiveActivity::getQualityDescriptionList() {
@@ -288,6 +322,193 @@ int LiveActivity::getCurrentQualityIndex() {
         if (liveUrl.accept_qn[i] == this->liveUrl.current_qn) return i;
     }
     return 0;
+}
+
+void LiveActivity::onSecondScreenChanged() {
+    bool enabled = wiliwili::second_screen::isEnabled();
+    if (enabled) {
+        this->secondScreenSession = wiliwili::second_screen::openSession(wiliwili::second_screen::Mode::LIVE);
+        wiliwili::second_screen::setCommandHandler(
+            this->secondScreenSession,
+            [this](wiliwili::second_screen::Command cmd, int64_t arg, const std::string& text) {
+                this->handleSecondScreenCommand(static_cast<int>(cmd), arg, text);
+            });
+    } else {
+        wiliwili::second_screen::closeSession(this->secondScreenSession);
+        this->secondScreenSession = 0;
+    }
+
+    brls::View* sidebar = this->getView("live_danmaku_sidebar");
+    brls::View* left    = this->getView("live_detail_left_box");
+    float width         = brls::Application::getStyle().getMetric("wiliwili/player/width");
+
+    if (enabled) {
+        // 主屏只留视频，弹幕搬到副屏
+        if (sidebar) sidebar->setVisibility(brls::Visibility::GONE);
+        if (left) {
+            left->setWidth(brls::View::AUTO);
+            left->setGrow(1);
+        }
+        if (this->video) this->video->setWidthPercentage(100);
+        if (this->video) brls::Application::giveFocus(this->video);
+
+        this->pushSecondScreenLiveInfo();
+        this->pushSecondScreenLiveQualities();
+        this->pushSecondScreenPlayerState();
+    } else if (sidebar && left && this->video) {
+        sidebar->setVisibility(brls::Visibility::VISIBLE);
+        left->setWidth(width);
+        left->setGrow(0);
+        this->video->setMinWidth(brls::View::AUTO);
+        this->video->setWidth(width);
+    }
+    brls::Logger::debug("[second-screen] live layout: enabled={} sidebar={}", enabled, sidebar != nullptr);
+}
+
+void LiveActivity::pushSecondScreenLiveInfo() {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    wiliwili::second_screen::LiveInfo info;
+    info.title    = this->liveData.title;
+    info.anchor   = this->liveData.uname;
+    info.online   = this->onlineCount;
+    info.watching = this->watchedCount;
+    info.roomid   = this->liveData.roomid;
+    wiliwili::second_screen::pushLiveInfo(info);
+}
+
+void LiveActivity::pushSecondScreenLiveQualities() {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    wiliwili::second_screen::VideoInfo info;
+    info.title = this->liveData.title;
+    info.up    = this->liveData.uname;
+
+    auto descriptions = this->getQualityDescriptionList();
+    for (size_t i = 0; i < this->liveUrl.accept_qn.size() && i < descriptions.size(); i++) {
+        info.qualities.push_back({this->liveUrl.accept_qn[i], descriptions[i]});
+    }
+    info.qualityIndex = this->getCurrentQualityIndex();
+    wiliwili::second_screen::pushVideoInfo(info);
+}
+
+void LiveActivity::pushSecondScreenPlayerState() {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    auto& mpv = MPVCore::instance();
+    wiliwili::second_screen::PlayerState state;
+    state.playing = mpv.video_playing;
+    state.paused  = mpv.video_paused;
+    state.danmaku = DanmakuCore::DANMAKU_ON;
+    state.speed   = 1.0;
+    state.volume  = mpv.volume;
+    state.mirror  = MPVCore::VIDEO_MIRROR;
+    state.aspect  = MPVCore::VIDEO_ASPECT;
+    state.qualityIndex = this->getCurrentQualityIndex();
+
+    auto* platform = brls::Application::getPlatform();
+    if (platform && platform->canSetBacklightBrightness()) {
+        state.canSetBrightness = true;
+        state.brightness =
+            static_cast<int64_t>(platform->getBacklightBrightness() * 100.0f + 0.5f);
+    }
+
+    wiliwili::second_screen::pushPlayerState(state);
+}
+
+void LiveActivity::pushSecondScreenMessages(const std::vector<LiveDanmakuItem>& danmaku_list,
+                                            const std::vector<LiveDanmakuItem>& sc_list) {
+    if (!wiliwili::second_screen::isEnabled()) return;
+
+    std::vector<wiliwili::second_screen::LiveMessage> messages;
+    messages.reserve(danmaku_list.size() + sc_list.size());
+
+    for (const auto& item : danmaku_list) {
+        if (!item.danmaku) continue;
+        wiliwili::second_screen::LiveMessage message;
+        message.type  = wiliwili::second_screen::LiveMessageType::DANMAKU;
+        message.user  = item.danmaku->user_name;
+        message.text  = item.danmaku->dan;
+        message.medal = item.danmaku->fan_medal_name;
+        char color[8];
+        snprintf(color, sizeof(color), "#%06X", item.danmaku->dan_color & 0xFFFFFF);
+        message.color = color;
+        messages.push_back(std::move(message));
+    }
+
+    for (const auto& item : sc_list) {
+        if (!item.super_chat) continue;
+        wiliwili::second_screen::LiveMessage message;
+        message.type  = wiliwili::second_screen::LiveMessageType::SUPER_CHAT;
+        message.user  = item.super_chat->user_name;
+        message.text  = item.super_chat->message;
+        message.bg    = item.super_chat->background_color;
+        message.medal = item.super_chat->fan_medal_name;
+        message.price = item.super_chat->price;
+        messages.push_back(std::move(message));
+    }
+
+    wiliwili::second_screen::pushLiveMessages(messages);
+}
+
+void LiveActivity::handleSecondScreenCommand(int cmd, int64_t arg, const std::string& text) {
+    using Command = wiliwili::second_screen::Command;
+    switch (static_cast<Command>(cmd)) {
+        case Command::PLAY_PAUSE:
+            if (MPVCore::instance().video_paused) {
+                MPVCore::instance().resume();
+            } else {
+                MPVCore::instance().pause();
+            }
+            break;
+        case Command::SET_QUALITY: {
+            int code = static_cast<int>(arg);
+            const auto& codes = this->liveUrl.accept_qn;
+            if (std::find(codes.begin(), codes.end(), code) == codes.end()) break;
+            LiveDataRequest::defaultQuality = code;
+            this->requestData(this->liveData.roomid);
+            break;
+        }
+        case Command::TOGGLE_DANMAKU:
+            if (this->video) this->video->toggleDanmaku();
+            this->pushSecondScreenPlayerState();
+            break;
+        case Command::SET_VOLUME: {
+            int64_t volume = std::max<int64_t>(0, std::min<int64_t>(100, arg));
+            MPVCore::instance().setVolume(volume);
+            this->pushSecondScreenPlayerState();
+            break;
+        }
+        case Command::SET_BRIGHTNESS: {
+            auto* platform = brls::Application::getPlatform();
+            if (!platform || !platform->canSetBacklightBrightness()) break;
+            float value = static_cast<float>(std::max<int64_t>(0, std::min<int64_t>(100, arg))) / 100.0f;
+            platform->setBacklightBrightness(value);
+            this->pushSecondScreenPlayerState();
+            break;
+        }
+        case Command::TOGGLE_MIRROR:
+            MPVCore::instance().setMirror(!MPVCore::VIDEO_MIRROR);
+            this->pushSecondScreenPlayerState();
+            break;
+        case Command::SET_ASPECT: {
+            static const std::vector<std::string> options = {"-1", "-2", "-3", "4:3", "16:9"};
+            if (std::find(options.begin(), options.end(), text) == options.end()) break;
+            MPVCore::instance().setAspect(text);
+            ProgramConfig::instance().setSettingItem(SettingItem::PLAYER_ASPECT, text);
+            this->pushSecondScreenPlayerState();
+            break;
+        }
+        case Command::SET_SECOND_SCREEN:
+            wiliwili::second_screen::setEnabled(arg != 0);
+            if (arg == 0 && this->video) this->video->showOSD(true);
+            break;
+        case Command::EXIT_PLAYER:
+            brls::Application::popActivity();
+            break;
+        default:
+            break;
+    }
 }
 
 void LiveActivity::onLiveData(const bilibili::LiveRoomPlayInfo &result)
@@ -369,6 +590,10 @@ void LiveActivity::onLiveData(const bilibili::LiveRoomPlayInfo &result)
                 });
             });
     }
+
+    // 双屏：直播标题与清晰度就绪
+    this->pushSecondScreenLiveInfo();
+    this->pushSecondScreenLiveQualities();
 
     // todo: 允许使用备用链接
     for (const auto& i : liveUrl.url_info) {
@@ -467,6 +692,9 @@ void LiveActivity::onDanmakuInfo(int roomid, const bilibili::LiveDanmakuinfo& in
                         }
                     }
                     
+                    // 双屏：同步弹幕与 SC 到副屏
+                    this->pushSecondScreenMessages(danmaku_list, sc_list);
+
                     // 处理弹幕到视频
                     process_danmaku(danmaku_list);
                     
@@ -854,7 +1082,11 @@ LiveActivity::~LiveActivity() {
     
     // 取消监控mpv
     APP_E->unsubscribe(event_id);
+    APP_E->unsubscribe(secondScreenSubscribeID);
     MPV_E->unsubscribe(tl_event_id);
+
+    // 双屏：只关闭自己的会话，避免误关栈中其他播放器的副屏
+    wiliwili::second_screen::closeSession(this->secondScreenSession);
     
     // 在取消监控之后再停止播放器，避免在播放器停止时触发事件 (尤其是：END_OF_FILE)
     if (this->video) {
@@ -905,6 +1137,8 @@ void LiveActivity::onAnchorInfo(const std::string& face, const std::string& unam
     if (this->shouldShowSidebar() && this->liveTitleLabel) {
         this->liveTitleLabel->setText(liveData.title);
     }
+
+    this->pushSecondScreenLiveInfo();
 }
 
 void LiveActivity::follow_anchor(bool follow) {
@@ -1009,7 +1243,7 @@ static void parse_history_danmaku_data(const bilibili::LiveHistoryDanmakuData& d
 }
 
 void LiveActivity::requestHistoryDanmaku(int roomid) {
-    if (!this->shouldShowSidebar())
+    if (!this->shouldShowSidebar() && !wiliwili::second_screen::isEnabled())
         return;
 
     auto state = this->threadState;
@@ -1035,6 +1269,7 @@ void LiveActivity::requestHistoryDanmaku(int roomid) {
                 if (!state->isActive.load(std::memory_order_acquire))
                     return;
                 this->processDanmakuForSidebar(dan_list);
+                this->pushSecondScreenMessages(dan_list, {});
             });
         },
         [ASYNC_TOKEN](BILI_ERR) {
@@ -1053,12 +1288,14 @@ void LiveActivity::updateWatchedCount(int watched_count) {
     
     // 更新liveData中的看过人数
     this->liveData.watched_show.text_large = watched_text;
+    this->watchedCount                     = watched_count;
     
     // 如果侧边栏显示，同时更新主播信息中的人数显示
     if (this->shouldShowSidebar() && this->liveAuthor) {
         // 只更新人数（misc），不要触碰头像与昵称，避免头像被置空而消失
         this->liveAuthor->getLabelMisc()->setText(watched_text);
     }
+    this->pushSecondScreenLiveInfo();
 }
 
 // 更新在线人数
@@ -1067,9 +1304,11 @@ void LiveActivity::updateOnlineCount(int online_count) {
     
     // 格式化在线人数显示文本
     std::string online_text = wiliwili::num2w(online_count) + "人在线";
+    this->onlineCount       = online_count;
     
     // 更新视频播放器显示的在线人数（优先显示在线人数而非看过人数）
     if (this->video) {
         this->video->setOnlineCount(online_text);
     }
+    this->pushSecondScreenLiveInfo();
 }

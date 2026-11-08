@@ -30,7 +30,8 @@
         "video_format": "비디오 형식",
         "window_fullscreen_on_app_fullscreen": "앱 내 전체 화면 시 창 전체 화면 자동 전환",
         "dolby": "Dolby Atmos",
-        "hi_res": "Hi-Res"
+        "hi_res": "Hi-Res",
+        "second_screen": "듀얼 스크린 모드(보조 화면에 댓글과 컨트롤 표시)"
       },
       "image": {
         "header": "이미지",
@@ -480,7 +481,9 @@
       "related": "총 {} 개의 답글",
       "end": "댓글이 더 이상 없음",
       "delete": "댓글을 삭제하면 해당 댓글 아래의 모든 답글이 삭제됩니다.\n\n계속하겠습니까?"
-    }
+    },
+    "second_screen_on": "보조 화면이 켜졌습니다",
+    "second_screen_off": "보조 화면이 꺼졌습니다"
   },
   "dialog": {
     "not_supported": "지원하지 않음",

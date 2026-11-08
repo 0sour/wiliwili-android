@@ -43,6 +43,8 @@ public:
 
     void onContentAvailable() override;
 
+    void onResume() override;
+
     void onLiveData(const bilibili::LiveRoomPlayInfo& result) override;
 
     void onError(const std::string& error) override;
@@ -102,7 +104,17 @@ private:
     // 关注/取关主播
     void follow_anchor(bool follow);
 
-    VideoView* video = nullptr;
+    // 双屏：开关变化时切换主屏布局并通知副屏
+    void onSecondScreenChanged();
+    void pushSecondScreenLiveInfo();
+    void pushSecondScreenLiveQualities();
+    void pushSecondScreenPlayerState();
+    void pushSecondScreenMessages(const std::vector<LiveDanmakuItem>& danmaku_list,
+                                  const std::vector<LiveDanmakuItem>& sc_list);
+    void handleSecondScreenCommand(int cmd, int64_t arg, const std::string& text);
+
+    BRLS_BIND(VideoView, video, "video");
+
     UserInfoView* liveAuthor = nullptr;
     brls::Box* liveDanmakuContainer = nullptr;
     brls::ScrollingFrame* liveDanmakuList = nullptr;
@@ -130,7 +142,13 @@ private:
     std::map<std::string, LiveDanmakuItemView*> pinnedSuperChatViews;
     
     // 侧边栏弹幕最大数量
-    int maxSidebarDanmakuCount = 100;
+    size_t maxSidebarDanmakuCount = 100;
+
+    // 双屏：在线人数与看过人数
+    int onlineCount  = 0;
+    int watchedCount = 0;
+    CustomEvent::Subscription secondScreenSubscribeID;
+    uint64_t secondScreenSession = 0;
 
     // 主播关注状态
     bool anchor_following = false;

@@ -125,6 +125,7 @@ enum class SettingItem {
     SHORTCUT_VIDEO_OSD, // 切换OSD显示
     SHORTCUT_VIDEO_PAUSE, // 视频播放暂停快捷键
     PLAYER_AUTO_FULLSCREEN, // 进入播放页后自动全屏
+    PLAYER_SECOND_SCREEN,    // 双屏模式：在副屏显示评论、弹幕与播放控制
     CUSTOM_THEME_COLOR,  // 自定义主题色 (十六进制 #RRGGBB，例如 #FF6699)
 };
 

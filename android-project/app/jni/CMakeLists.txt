@@ -21,6 +21,12 @@ set(USE_SHARED_MBEDTLS_LIBRARY OFF CACHE BOOL "" FORCE)
 set(USE_STATIC_MBEDTLS_LIBRARY ON CACHE BOOL "" FORCE)
 # mbedtls must stay static even though BUILD_SHARED_LIBS is ON for SDL/wiliwili
 set(BUILD_SHARED_LIBS OFF)
+# Offline/local builds may keep an extracted mbedtls tree next to the sources;
+# prefer it over re-downloading (the URL has no hash, so CMake re-downloads
+# it on every reconfigure).
+if (EXISTS "${WILIWILI_DIR}/mbedtls-3.5.2/CMakeLists.txt")
+    set(FETCHCONTENT_SOURCE_DIR_MBEDTLS "${WILIWILI_DIR}/mbedtls-3.5.2" CACHE PATH "" FORCE)
+endif ()
 FetchContent_Declare(mbedtls
         URL https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/mbedtls-3.5.2.tar.gz)
 FetchContent_MakeAvailable(mbedtls)
@@ -52,6 +58,9 @@ Version: 0.41.0
 Libs: -L\${libdir} -lmpv
 Cflags: -I\${includedir}
 ")
+# pkgconf on Windows defaults to --define-prefix, which rewrites the pc file's
+# prefix to the pkgconfig directory and breaks the -L path above.
+link_directories("${MPV_LIBS_DIR}")
 set(ENV{PKG_CONFIG_LIBDIR} "${CMAKE_BINARY_DIR}/pkgconfig")
 
 # ---------------------------------------------------------------------------
@@ -60,6 +69,15 @@ set(ENV{PKG_CONFIG_LIBDIR} "${CMAKE_BINARY_DIR}/pkgconfig")
 # ---------------------------------------------------------------------------
 set(PLATFORM_ANDROID ON CACHE BOOL "")
 set(LIBROMFS_PREBUILT_GENERATOR "${WILIWILI_DIR}/libromfs-generator" CACHE STRING "")
+
+# curl's HAVE_POLL_FINE probe is a compile-and-run test that CMake skips while
+# cross-compiling, so curl would use its select() fallback. select() returns
+# EINVAL once a socket fd is >= FD_SETSIZE (1024), which Android processes can
+# reach after accumulating enough surfaces/fences; every request then fails
+# with "A libcurl function was given a bad argument". poll() is fine on
+# Android, so force that backend.
+set(HAVE_POLL_FINE TRUE CACHE INTERNAL "")
+
 add_subdirectory(${WILIWILI_DIR} wiliwili)
 
 # cpr's CMake only sets up include dirs and link libs for its OpenSSL backend,

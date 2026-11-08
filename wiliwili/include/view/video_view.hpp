@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include <borealis/core/bind.hpp>
 #include <borealis/core/box.hpp>
 #include <borealis/core/application.hpp>
@@ -196,6 +198,9 @@ public:
     // 手动刷新osd右下角的弹幕图标
     void refreshDanmakuIcon();
 
+    // 手动刷新osd右下角的单/双屏切换按钮
+    void updateSecondScreenButton();
+
     void setProgress(float value);
 
     float getProgress();
@@ -277,6 +282,9 @@ public:
 private:
     bool allowFullscreen  = true;
     bool registerMPVEvent = false;
+    // 生命周期令牌：析构时置为 false，残留的 MPV 事件订阅会直接返回，
+    // 避免重复订阅覆盖 eventSubscribeID 后旧订阅持有悬空 this 导致 UAF。
+    std::shared_ptr<bool> aliveToken = std::make_shared<bool>(true);
     bool enableDanmaku    = true;
     // 和前面的 EXIT_FULLSCREEN_ON_END 共同控制，closeOnEndOfFile用来控制单个VideoView行为
     bool closeOnEndOfFile = true;
@@ -336,6 +344,8 @@ private:
     BRLS_BIND(SVGImage, btnToggleIcon, "video/osd/toggle/icon");
     BRLS_BIND(SVGImage, btnFullscreenIcon, "video/osd/fullscreen/icon");
     BRLS_BIND(SVGImage, btnDanmakuIcon, "video/osd/danmaku/icon");
+    // 不使用 BRLS_BIND：自定义主题可能没有这个新增按钮
+    SVGImage* btnSecondScreenIcon = nullptr;
     BRLS_BIND(SVGImage, btnVolumeIcon, "video/osd/danmaku/volume/icon");
     BRLS_BIND(SVGImage, btnDanmakuSettingIcon, "video/osd/danmaku/setting/icon");
     BRLS_BIND(SVGImage, btnSettingIcon, "video/osd/setting/icon");

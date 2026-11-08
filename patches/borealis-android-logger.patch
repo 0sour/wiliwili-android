@@ -1,0 +1,17 @@
+diff --git a/library/include/borealis/core/logger.hpp b/library/include/borealis/core/logger.hpp
+index e0560313..f86e4849 100644
+--- a/library/include/borealis/core/logger.hpp
++++ b/library/include/borealis/core/logger.hpp
+@@ -114,6 +114,12 @@ class Logger
+             fmt::print(logOut, "{:%H:%M:%S}.{:03d} {} {}\n", time_tm, (int)ms, color, log);
+ #elif defined(ANDROID)
+             __android_log_print(6 - (int)level, "borealis", "%02d:%02d:%02d.%03d %s\n", time_tm.tm_hour, time_tm.tm_min, time_tm.tm_sec, (int)ms, log.c_str());
++            // Mirror to the log file set through setLogOutput() (diagnostics).
++            if (Logger::logOut != nullptr && Logger::logOut != stdout) {
++                fmt::print(logOut, "{:02d}:{:02d}:{:02d}.{:03d} [{}] {}\n", time_tm.tm_hour, time_tm.tm_min,
++                           time_tm.tm_sec, (int)ms, prefix, log);
++                fflush(logOut);
++            }
+ #elif defined(__PSV__)
+             sceClibPrintf("%02d:%02d:%02d.%03d\033%s[%s]\033[0m %s\n", time_tm.tm_hour, time_tm.tm_min, time_tm.tm_sec, (int)ms, color.c_str(), prefix.c_str(), log.c_str());
+ #elif defined(PS4)

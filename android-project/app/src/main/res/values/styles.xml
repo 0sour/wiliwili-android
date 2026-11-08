@@ -5,4 +5,45 @@
         <!-- Customize your theme here. -->
     </style>
 
+    <!-- Second screen control bar button (wiliwili light theme) -->
+    <style name="SecondScreenButton">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginRight">8dp</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+        <item name="android:paddingTop">9dp</item>
+        <item name="android:paddingBottom">9dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">#FF2D2D2D</item>
+        <item name="android:background">@drawable/second_screen_button_bg</item>
+    </style>
+
+    <!-- Second screen content tab -->
+    <style name="SecondScreenTabBox">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center_horizontal</item>
+    </style>
+
+    <style name="SecondScreenTabText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingLeft">16dp</item>
+        <item name="android:paddingRight">16dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">#FF61666D</item>
+    </style>
+
+    <style name="SecondScreenTabIndicator">
+        <item name="android:layout_width">20dp</item>
+        <item name="android:layout_height">2dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:background">#FFFF6699</item>
+        <item name="android:visibility">gone</item>
+    </style>
+
 </resources>

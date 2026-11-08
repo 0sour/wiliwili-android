@@ -228,6 +228,25 @@
                         positionType="absolute"
                         positionRight="20">
                     <brls:Box
+                            id="video/osd/second/screen/box"
+                            hideClickAnimation="true"
+                            alignItems="center"
+                            justifyContent="center"
+                            height="60"
+                            width="60">
+                        <SVGImage
+                                id="video/osd/second/screen/icon"
+                                focusable="true"
+                                focusUp="video/osd/lock/box"
+                                focusDown="video/osd/second/screen/icon"
+                                hideHighlightBackground="true"
+                                highlightCornerRadius="30"
+                                wireframe="false"
+                                height="30"
+                                width="30"
+                                SVG="@res/svg/bpx-svg-sprite-second-screen-on.svg"/>
+                    </brls:Box>
+                    <brls:Box
                             id="video/osd/danmaku/box/volume"
                             hideClickAnimation="true"
                             alignItems="center"

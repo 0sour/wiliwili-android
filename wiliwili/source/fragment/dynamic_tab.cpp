@@ -2,6 +2,8 @@
 // Created by fang on 2022/6/9.
 //
 
+#include <exception>
+#include <string>
 #include <utility>
 #include <borealis/core/thread.hpp>
 
@@ -98,7 +100,14 @@ public:
             item->setSelected(true);
         } else {
             // 选择具体的某个up主
-            userSelectedEvent.fire(list[index - 1].mid);
+            uint64_t mid = 0;
+            try {
+                mid = std::stoull(list[index - 1].mid);
+            } catch (const std::exception& e) {
+                brls::Logger::error("invalid dynamic up mid: {} ({})", list[index - 1].mid, e.what());
+                return;
+            }
+            userSelectedEvent.fire(mid);
             // 移除小红点
             auto* item = dynamic_cast<DynamicUserInfoView*>(recycler->getGridItemByIndex(index));
             if (!item) return;

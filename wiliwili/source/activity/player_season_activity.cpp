@@ -155,6 +155,7 @@ void PlayerSeasonActivity::onSeasonEpisodeInfo(const bilibili::SeasonEpisodeResu
     std::string title = this->seasonInfo.season_title + " - " + result.title;
     APP_E->fire(VideoView::SET_TITLE, (void*)title.c_str());
     this->videoBVIDLabel->setText(result.bvid);
+    this->pushSecondScreenVideoInfo();
 }
 
 void PlayerSeasonActivity::onSeasonStatus(const bilibili::SeasonStatusResult& result) {
@@ -204,6 +205,9 @@ void PlayerSeasonActivity::onSeasonVideoInfo(const bilibili::SeasonResultWrapper
 
     // videoView bangumi custom setting
     video->setBangumiCustomSetting(result.season_title, result.season_id);
+
+    // 双屏：番剧标题与 UP 主信息就绪
+    this->pushSecondScreenVideoInfo();
 
     // 设置分集信息
     changeIndexEvent.clear();

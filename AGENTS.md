@@ -2,6 +2,15 @@
 
 wiliwili is a cross-platform Bilibili client (Nintendo Switch, PSVita, PS4, PC) built in C++17. The UI is rendered via **nanovg**, windowing via **GLFW** or **SDL2**, and video playback via **mpv + FFmpeg**.
 
+> **Project split (2026-11):** this repository is the **single-screen Android port/fix**
+> of wiliwili; dual-screen is off by default (`DUAL_SCREEN=false`). The active
+> dual-screen product is a separate Kotlin/Compose project, **bili-duo**, at
+> `D:\项目\bili-duo` (top screen video-only, bottom screen full UI). The old
+> dual-screen code in this repo is experimental and must not be used for new work.
+> See `docs/bili-duo-research.md` for the architecture decision and
+> `D:\项目\bili-duo\HANDOFF.md` for the bili-duo continuation guide. Keep changes
+> scoped to their repository: wiliwili-android work here, bili-duo work in that project.
+
 ---
 
 ## Architecture Layers (Android-inspired)

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 #include <borealis/core/activity.hpp>
 #include <borealis/core/bind.hpp>
 
@@ -28,6 +30,8 @@ public:
     CONTENT_FROM_XML_RES("activity/main.xml");
 
     void onContentAvailable() override;
+    void onResume() override;
+    void onPause() override;
 
     ~MainActivity() override;
 
@@ -35,4 +39,8 @@ private:
     BRLS_BIND(CustomButton, settingBtn, "main/setting");
     BRLS_BIND(CustomButton, inboxBtn, "main/inbox");
     BRLS_BIND(AutoTabFrame, tabFrame, "main/tabFrame");
+
+    void startHomeSession();
+
+    uint64_t homeSession = 0;
 };

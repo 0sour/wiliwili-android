@@ -11,6 +11,7 @@
 #include "view/recycling_grid.hpp"
 #include "view/auto_tab_frame.hpp"
 #include "utils/event_helper.hpp"
+#include "utils/second_screen.hpp"
 
 class VideoView;
 class UserInfoView;
@@ -35,6 +36,8 @@ public:
     BasePlayerActivity() = default;
 
     void onContentAvailable() override;
+
+    void onResume() override;
 
     void onVideoPlayUrl(const bilibili::VideoUrlResult& result) override;
     void onCommentInfo(const bilibili::VideoCommentResultWrapper& result) override;
@@ -61,6 +64,22 @@ public:
 
     // 切换评论模式
     void setCommentMode();
+
+    // 双屏：根据当前视频类型决定主屏是否隐藏右侧面板
+    void updateSecondScreenLayout();
+
+    // 双屏：推送视频信息与播放状态
+    void pushSecondScreenVideoInfo();
+    void pushSecondScreenPlayerState();
+
+    // 双屏：列表与缓存数据
+    void pushSecondScreenRelatedList();
+    void pushSecondScreenPageList(const bilibili::VideoDetailPageListResult& pages);
+    void pushSecondScreenEpisodeList();
+    void pushSecondScreenCachedComments();
+
+    // 双屏：为当前活动开启一个副屏会话
+    void startSecondScreenSession();
 
     // 设定当前的播放进度，获取视频链接后会自动跳转到该进度
     // 目前有两个使用场景：
@@ -107,6 +126,11 @@ public:
 protected:
     BRLS_BIND(VideoView, video, "video");
     BRLS_BIND(brls::AppletFrame, appletFrame, "video/detail/frame");
+    // 不使用 BRLS_BIND：自定义主题可能缺少这些节点
+    brls::Box* videoLeftBox  = nullptr;
+    brls::Box* videoRightBox = nullptr;
+    brls::Box* videoInfoBox  = nullptr;
+    brls::View* videoCloseButton = nullptr;
     BRLS_BIND(UserInfoView, videoUserInfo, "video_author");
     BRLS_BIND(brls::Box, videoTitleBox, "video/title/box");
     BRLS_BIND(brls::Label, videoTitleLabel, "video/title");
@@ -130,6 +154,8 @@ protected:
     // 监控mpv事件
     MPVEvent::Subscription eventSubscribeID;
     CustomEvent::Subscription customEventSubscribeID;
+    // 双屏模式切换事件
+    CustomEvent::Subscription secondScreenSubscribeID;
 
     // 在软件自动切换分集时，传递当前跳转的索引值给列表用于更新ui
     ChangeIndexEvent changeIndexEvent;
@@ -138,8 +164,17 @@ private:
     bool activityShown = false;
     std::chrono::system_clock::time_point videoDeadline{};
 
+    // 上一次推送到副屏的播放进度（秒），用于限制更新频率
+    int64_t secondScreenPosition = -1;
+    // 当前副屏会话 id，用于避免旧播放器关闭新播放器的副屏
+    uint64_t secondScreenSession = 0;
+
     // 重新选择当前清晰度的播放链接播放
     void updateVideoLink();
+
+    // 处理副屏发来的控制命令
+    void handleSecondScreenCommand(wiliwili::second_screen::Command cmd, int64_t arg,
+                                   const std::string& text);
 };
 
 class PlayerActivity : public BasePlayerActivity {

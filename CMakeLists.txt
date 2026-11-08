@@ -184,7 +184,7 @@ else ()
 endif ()
 
 # source cpp
-file(GLOB_RECURSE MAIN_SRC wiliwili/source/*.cpp)
+file(GLOB_RECURSE MAIN_SRC CONFIGURE_DEPENDS wiliwili/source/*.cpp)
 if (WIN32)
     configure_file("${CMAKE_SOURCE_DIR}/wiliwili/app_win32.rc.in" "${CMAKE_BINARY_DIR}/app_win32.rc")
     list(APPEND MAIN_SRC ${CMAKE_BINARY_DIR}/app_win32.rc)

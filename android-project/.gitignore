@@ -25,6 +25,8 @@ render.experimental.xml
 # Keystore files
 *.jks
 *.keystore
+# Public project key for reproducible release builds and in-place APK updates
+!app/wiliwili.jks
 
 # Google Services (e.g. APIs or Firebase)
 google-services.json

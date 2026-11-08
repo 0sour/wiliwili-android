@@ -74,6 +74,8 @@ private:
     BRLS_BIND(BiliSelectorCell, btnOnTopMode, "setting/onTopMode");
     BRLS_BIND(brls::BooleanCell, btnProgress, "setting/video/progress");
     BRLS_BIND(brls::BooleanCell, btnHistory, "setting/history/log");
+    // 不使用 BRLS_BIND：自定义主题可能没有这个新增选项
+    brls::BooleanCell* btnSecondScreen = nullptr;
     BRLS_BIND(brls::DetailCell, btnPlayStrategy, "setting/play/strategy");
     BRLS_BIND(brls::BooleanCell, btnExitFullscreen, "setting/auto/exit");
     BRLS_BIND(brls::BooleanCell, btnMirror, "setting/video/mirror");

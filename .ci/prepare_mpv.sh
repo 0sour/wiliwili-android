@@ -31,9 +31,10 @@ for abi in $ABIS; do
     for so in "$TMP/aar/jni/$abi/"*.so; do
         name="$(basename "$so")"
         case "$name" in
-            # libc++_shared.so comes from our own NDK build,
-            # libplayer.so is the AAR's Java wrapper, not used by wiliwili
-            libc++_shared.so|libplayer.so) continue ;;
+            # libc++_shared.so is kept: the AAR's libmpv is built with a newer
+            # NDK than this project's r26 and needs libc++ symbols r26 lacks.
+            # libplayer.so is the AAR's Java wrapper, not used by wiliwili.
+            libplayer.so) continue ;;
         esac
         cp "$so" "$JNILIBS/$abi/"
     done

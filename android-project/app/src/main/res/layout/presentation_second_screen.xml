@@ -1,0 +1,548 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/second_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFF5F6F7">
+
+    <LinearLayout
+        android:id="@+id/second_main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/second_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFF5F6F7"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="16dp"
+        android:paddingTop="8dp"
+        android:paddingRight="12dp"
+        android:paddingBottom="7dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/second_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="wiliwili"
+                android:textColor="#FF2D2D2D"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/second_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="#FF9499A0"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/second_live_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#FFFF6699"
+            android:paddingLeft="8dp"
+            android:paddingTop="2dp"
+            android:paddingRight="8dp"
+            android:paddingBottom="2dp"
+            android:text="LIVE"
+            android:textColor="#FFFFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/second_online"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:textColor="#FF9499A0"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/second_exit"
+            style="@style/SecondScreenButton"
+            android:layout_marginLeft="8dp"
+            android:layout_marginRight="0dp"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:text="退出"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <View
+        android:id="@+id/second_header_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#FFD0D0D0" />
+
+    <LinearLayout
+        android:id="@+id/second_tabs"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="#FFF5F6F7"
+        android:orientation="horizontal"
+        android:paddingLeft="8dp">
+
+        <LinearLayout
+            android:id="@+id/second_tab_comments_box"
+            style="@style/SecondScreenTabBox">
+
+            <TextView
+                android:id="@+id/second_tab_comments"
+                style="@style/SecondScreenTabText"
+                android:text="评论" />
+
+            <View
+                android:id="@+id/second_tab_comments_indicator"
+                style="@style/SecondScreenTabIndicator" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/second_tab_related_box"
+            style="@style/SecondScreenTabBox">
+
+            <TextView
+                android:id="@+id/second_tab_related"
+                style="@style/SecondScreenTabText"
+                android:text="推荐" />
+
+            <View
+                android:id="@+id/second_tab_related_indicator"
+                style="@style/SecondScreenTabIndicator" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/second_tab_episodes_box"
+            style="@style/SecondScreenTabBox">
+
+            <TextView
+                android:id="@+id/second_tab_episodes"
+                style="@style/SecondScreenTabText"
+                android:text="分集" />
+
+            <View
+                android:id="@+id/second_tab_episodes_indicator"
+                style="@style/SecondScreenTabIndicator" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/second_tab_info_box"
+            style="@style/SecondScreenTabBox">
+
+            <TextView
+                android:id="@+id/second_tab_info"
+                style="@style/SecondScreenTabText"
+                android:text="信息" />
+
+            <View
+                android:id="@+id/second_tab_info_indicator"
+                style="@style/SecondScreenTabIndicator" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:id="@+id/second_tabs_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#FFD0D0D0" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFF5F6F7">
+
+        <ListView
+            android:id="@+id/second_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none" />
+
+        <ScrollView
+            android:id="@+id/second_info_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/second_info_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="5dp"
+                android:textColor="#FF2D2D2D"
+                android:textSize="13sp" />
+        </ScrollView>
+
+        <TextView
+            android:id="@+id/second_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="正在加载评论…"
+            android:textColor="#FF9499A0"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/second_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/second_status_bg"
+            android:paddingLeft="14dp"
+            android:paddingTop="7dp"
+            android:paddingRight="14dp"
+            android:paddingBottom="7dp"
+            android:textColor="#FFFFFFFF"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <View
+        android:id="@+id/second_controls_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#FFD0D0D0" />
+
+    <LinearLayout
+        android:id="@+id/second_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFF5F6F7"
+        android:orientation="vertical"
+        android:paddingLeft="10dp"
+        android:paddingTop="4dp"
+        android:paddingRight="10dp"
+        android:paddingBottom="2dp">
+
+        <LinearLayout
+            android:id="@+id/second_seek_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/second_position"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="44dp"
+                android:text="00:00"
+                android:textColor="#FF9499A0"
+                android:textSize="11sp" />
+
+            <SeekBar
+                android:id="@+id/second_seek"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="1000"
+                android:minHeight="24dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp" />
+
+            <TextView
+                android:id="@+id/second_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="right"
+                android:minWidth="44dp"
+                android:text="00:00"
+                android:textColor="#FF9499A0"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/second_transport_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/second_prev"
+                android:layout_width="46dp"
+                android:layout_height="38dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="上一集"
+                android:padding="8dp"
+                android:src="@drawable/ic_skip_previous" />
+
+            <ImageView
+                android:id="@+id/second_rewind"
+                android:layout_width="46dp"
+                android:layout_height="38dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="快退 10 秒"
+                android:padding="8dp"
+                android:src="@drawable/ic_rewind" />
+
+            <ImageView
+                android:id="@+id/second_play"
+                android:layout_width="58dp"
+                android:layout_height="42dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="播放/暂停"
+                android:padding="9dp"
+                android:src="@drawable/ic_pause" />
+
+            <ImageView
+                android:id="@+id/second_forward"
+                android:layout_width="46dp"
+                android:layout_height="38dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="快进 10 秒"
+                android:padding="8dp"
+                android:src="@drawable/ic_forward" />
+
+            <ImageView
+                android:id="@+id/second_next"
+                android:layout_width="46dp"
+                android:layout_height="38dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="下一集"
+                android:padding="8dp"
+                android:src="@drawable/ic_skip_next" />
+
+            <View
+                android:id="@+id/second_group_divider"
+                android:layout_width="1dp"
+                android:layout_height="20dp"
+                android:layout_marginLeft="8dp"
+                android:layout_marginRight="8dp"
+                android:background="#FFD0D0D0" />
+
+            <ImageView
+                android:id="@+id/second_danmaku"
+                android:layout_width="40dp"
+                android:layout_height="38dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="弹幕开关"
+                android:padding="8dp"
+                android:src="@drawable/ic_danmaku_on" />
+
+            <TextView
+                android:id="@+id/second_quality"
+                style="@style/SecondScreenButton"
+                android:text="清晰度" />
+
+            <ImageView
+                android:id="@+id/second_more"
+                android:layout_width="40dp"
+                android:layout_height="38dp"
+                android:layout_marginLeft="6dp"
+                android:background="@drawable/second_screen_button_bg"
+                android:contentDescription="更多功能"
+                android:padding="8dp"
+                android:src="@drawable/ic_more" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:id="@+id/second_hints_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#FFD0D0D0" />
+
+    <HorizontalScrollView
+        android:id="@+id/second_hints_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFF5F6F7"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/second_hints"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="12dp"
+            android:paddingTop="3dp"
+            android:paddingRight="12dp"
+            android:paddingBottom="3dp" />
+    </HorizontalScrollView>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/second_home"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FFF5F6F7"
+        android:orientation="vertical"
+        android:paddingLeft="28dp"
+        android:paddingTop="22dp"
+        android:paddingRight="28dp"
+        android:paddingBottom="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/second_home_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="wiliwili"
+            android:textColor="#FF2D2D2D"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/second_home_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="双屏模式 · 下屏控制台"
+            android:textColor="#FF9499A0"
+            android:textSize="13sp" />
+
+        <View
+            android:id="@+id/second_home_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:background="#FFD0D0D0" />
+
+        <TextView
+            android:id="@+id/second_home_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:lineSpacingExtra="5dp"
+            android:text="在上屏浏览内容。打开视频或直播后，这里会显示评论、推荐、分集、信息和全部播放控制。"
+            android:textColor="#FF2D2D2D"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/second_home_section"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="快捷入口"
+            android:textColor="#FF2D2D2D"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/second_home_actions1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="8dp"
+                android:paddingBottom="2dp">
+
+                <TextView
+                    android:id="@+id/second_home_tab_home"
+                    style="@style/SecondScreenButton"
+                    android:text="首页" />
+
+                <TextView
+                    android:id="@+id/second_home_tab_dynamic"
+                    style="@style/SecondScreenButton"
+                    android:text="动态" />
+
+                <TextView
+                    android:id="@+id/second_home_tab_mine"
+                    style="@style/SecondScreenButton"
+                    android:text="我的" />
+
+                <TextView
+                    android:id="@+id/second_home_search"
+                    style="@style/SecondScreenButton"
+                    android:text="搜索" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <LinearLayout
+            android:id="@+id/second_home_actions2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="2dp">
+
+            <TextView
+                android:id="@+id/second_home_settings"
+                style="@style/SecondScreenButton"
+                android:text="设置" />
+
+            <TextView
+                android:id="@+id/second_home_refresh"
+                style="@style/SecondScreenButton"
+                android:text="刷新" />
+
+            <TextView
+                android:id="@+id/second_home_close"
+                style="@style/SecondScreenButton"
+                android:text="关闭下屏" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/second_home_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="触摸操作 · 播放时可用手柄控制下屏"
+            android:textColor="#FF9499A0"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/second_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#66000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/second_overlay_panel"
+            android:layout_width="340dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:clickable="true"
+            android:orientation="vertical"
+            android:paddingLeft="18dp"
+            android:paddingTop="14dp"
+            android:paddingRight="18dp"
+            android:paddingBottom="12dp" />
+    </FrameLayout>
+</FrameLayout>

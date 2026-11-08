@@ -19,11 +19,66 @@
 #include "activity/main_activity.hpp"
 #include "utils/activity_helper.hpp"
 #include "utils/dialog_helper.hpp"
+#include "utils/second_screen.hpp"
 #include "view/custom_button.hpp"
 #include "view/auto_tab_frame.hpp"
 #include "view/svg_image.hpp"
 
-MainActivity::~MainActivity() { brls::Logger::debug("del MainActivity"); }
+MainActivity::~MainActivity() {
+    wiliwili::second_screen::closeSession(this->homeSession);
+    brls::Logger::debug("del MainActivity");
+}
+
+void MainActivity::onResume() {
+    brls::Activity::onResume();
+    this->startHomeSession();
+}
+
+void MainActivity::startHomeSession() {
+    if (!wiliwili::second_screen::isEnabled()) {
+        wiliwili::second_screen::closeSession(this->homeSession);
+        this->homeSession = 0;
+        return;
+    }
+
+    // The lower screen keeps a companion dashboard while the main page is active.
+    this->homeSession = wiliwili::second_screen::openSession(wiliwili::second_screen::Mode::HOME);
+    wiliwili::second_screen::setCommandHandler(
+        this->homeSession,
+        [this](wiliwili::second_screen::Command cmd, int64_t arg, const std::string& text) {
+            using Command = wiliwili::second_screen::Command;
+            switch (cmd) {
+                case Command::OPEN_SEARCH:
+                    if (text.empty()) {
+                        Intent::openTVSearch();
+                    } else {
+                        Intent::openSearch(text);
+                    }
+                    break;
+                case Command::OPEN_SETTINGS:
+                    Intent::openSetting();
+                    break;
+                case Command::REFRESH_HOME:
+                    if (this->tabFrame) this->tabFrame->refresh();
+                    wiliwili::second_screen::pushTheme();
+                    break;
+                case Command::MAIN_TAB:
+                    if (this->tabFrame) this->tabFrame->focusTab(static_cast<int>(arg));
+                    break;
+                case Command::SET_SECOND_SCREEN:
+                    wiliwili::second_screen::setEnabled(arg != 0);
+                    break;
+                default:
+                    break;
+            }
+        });
+}
+
+void MainActivity::onPause() {
+    wiliwili::second_screen::closeSession(this->homeSession);
+    this->homeSession = 0;
+    brls::Activity::onPause();
+}
 
 void MainActivity::onContentAvailable() {
     this->registerAction(
@@ -106,4 +161,7 @@ void MainActivity::onContentAvailable() {
         }
     });
     this->inboxBtn->addGestureRecognizer(new brls::TapGestureRecognizer(this->inboxBtn));
+
+    // pushActivity() does not call onResume(), so open the HOME session here too.
+    this->startHomeSession();
 }

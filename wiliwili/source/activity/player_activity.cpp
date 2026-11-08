@@ -241,6 +241,10 @@ void PlayerActivity::onVideoInfo(const bilibili::VideoDetailResult& result) {
     this->labelCoin->setText(wiliwili::num2w(result.stat.coin));
     this->labelFavorite->setText(wiliwili::num2w(result.stat.favorite));
     this->labelQR->setText(wiliwili::num2w(result.stat.share));
+
+    // 双屏：标题与分P信息就绪，刷新布局并推送
+    this->updateSecondScreenLayout();
+    this->pushSecondScreenVideoInfo();
 }
 
 void PlayerActivity::onUpInfo(const bilibili::UserDetailResultWrapper& user) {
@@ -259,6 +263,9 @@ void PlayerActivity::onUpInfo(const bilibili::UserDetailResultWrapper& user) {
 }
 
 void PlayerActivity::onVideoPageListInfo(const bilibili::VideoDetailPageListResult& result) {
+    // 双屏：页面列表决定主屏是否需要保留右侧分P面板
+    this->updateSecondScreenLayout();
+
     for (const auto& i : result) {
         brls::Logger::debug("cid:{} title:{}", i.cid, i.part);
     }

@@ -18,6 +18,7 @@
 #include "utils/string_helper.hpp"
 #include "utils/gesture_helper.hpp"
 #include "utils/activity_helper.hpp"
+#include "utils/second_screen.hpp"
 #include "activity/player_activity.hpp"
 #include "fragment/player_danmaku_setting.hpp"
 #include "fragment/player_setting.hpp"
@@ -46,6 +47,14 @@ static int getSeekRange(int current) {
     return current / 20;
 }
 
+/// In dual-screen mode the player hands input ownership to the lower UI:
+/// every gamepad button is forwarded instead of acting on the top screen.
+static bool forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey key) {
+    if (!wiliwili::second_screen::isEnabled()) return false;
+    wiliwili::second_screen::pushGamepad(key);
+    return true;
+}
+
 #define CHECK_OSD(shake)                                                              \
     if (is_osd_lock) {                                                                \
         if (isOSDShown()) {                                                           \
@@ -60,6 +69,7 @@ static int getSeekRange(int current) {
 VideoView::VideoView() {
     mpvCore = &MPVCore::instance();
     this->inflateFromXMLRes("xml/views/video_view.xml");
+    this->btnSecondScreenIcon = dynamic_cast<SVGImage*>(this->getView("video/osd/second/screen/icon"));
     this->setHideHighlightBackground(true);
     this->setHideClickAnimation(true);
 
@@ -74,6 +84,7 @@ VideoView::VideoView() {
             this->registerAction(
                 "cancel", brls::ControllerButton::BUTTON_B,
                 [this](brls::View* view) -> bool {
+                    if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::B)) return true;
                     this->dismiss();
                     return true;
                 },
@@ -83,6 +94,7 @@ VideoView::VideoView() {
 
     // 快退
     auto rewindFunc = [this](...) -> bool {
+        if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::LB)) return true;
         CHECK_OSD(true);
         seeking_range -= getSeekRange(seeking_range);
         this->requestSeeking(seeking_range);
@@ -94,6 +106,7 @@ VideoView::VideoView() {
     this->registerAction(
         "\uE08E", brls::ControllerButton::BUTTON_RB,
         [this](brls::View* view) -> bool {
+            if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::RB)) return true;
             CHECK_OSD(true);
             auto& state  = brls::Application::getControllerState();
             bool buttonY =
@@ -110,6 +123,7 @@ VideoView::VideoView() {
 
     // 显示隐藏 OSD
     auto osdFunc = [this](...) -> bool {
+        if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::Y)) return true;
         // 拖拽进度时不要影响显示 OSD
         if (is_seeking) return true;
         this->toggleOSD();
@@ -119,6 +133,7 @@ VideoView::VideoView() {
 
     // 切换弹幕显示
     auto danmakuFunc = [this](...) -> bool {
+        if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::X)) return true;
         if (this->hintBox->getVisibility() == brls::Visibility::VISIBLE) {
             APP_E->fire(VideoView::SWITCH_TO_LAST, nullptr);
             return true;
@@ -132,6 +147,10 @@ VideoView::VideoView() {
     this->registerAction(
         "volume", brls::ControllerButton::BUTTON_RT,
         [this](brls::View* view) -> bool {
+            if (wiliwili::second_screen::isEnabled()) {
+                wiliwili::second_screen::pushGamepad(wiliwili::second_screen::GamepadKey::RT);
+                return true;
+            }
             CHECK_OSD(true);
             auto &state = brls::Application::getControllerState();
             if (state.buttons[brls::BUTTON_NAV_UP]) {
@@ -145,6 +164,14 @@ VideoView::VideoView() {
                 return true;
             }
             return false;
+        },
+        true, true);
+
+    // 双屏时下屏接管输入，LT/RT 用于切换下屏标签
+    this->registerAction(
+        "", brls::ControllerButton::BUTTON_LT,
+        [](brls::View*) -> bool {
+            return forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::LT);
         },
         true, true);
 
@@ -190,6 +217,13 @@ VideoView::VideoView() {
     /// 滑动调整进度
     /// 左右侧滑动调整音量，在支持调节背光的设备上左侧滑动调节背光亮度，右侧调节音量
     this->addGestureRecognizer(new OsdGestureRecognizer([this](OsdGestureStatus status) {
+        // 双屏模式下上屏只保留双击播放/暂停，其余手势全部交给下屏
+        if (wiliwili::second_screen::isEnabled()) {
+            if (status.osdGestureType == OsdGestureType::DOUBLE_TAP_END && !is_osd_lock) {
+                this->togglePlay();
+            }
+            return;
+        }
         switch (status.osdGestureType) {
             case OsdGestureType::TAP:
                 this->toggleOSD();
@@ -299,6 +333,7 @@ VideoView::VideoView() {
 
     /// 清晰度按钮
     auto qualityFunc = [this](...) {
+        if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::START)) return true;
         CHECK_OSD(true);
         APP_E->fire(VideoView::QUALITY_CHANGE, nullptr);
         return true;
@@ -309,6 +344,7 @@ VideoView::VideoView() {
 
     /// 视频详情信息
     auto profileFunc = [this](...) {
+        if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::BACK)) return true;
         CHECK_OSD(true);
         toggleVideoProfile();
         return true;
@@ -354,6 +390,21 @@ VideoView::VideoView() {
     });
     this->btnDanmakuSettingIcon->getParent()->addGestureRecognizer(
         new brls::TapGestureRecognizer(this->btnDanmakuSettingIcon->getParent()));
+
+    /// 单/双屏切换按钮
+    if (this->btnSecondScreenIcon && this->btnSecondScreenIcon->getParent()) {
+        this->btnSecondScreenIcon->getParent()->registerClickAction([this](...) {
+            bool enabled = !wiliwili::second_screen::isEnabled();
+            wiliwili::second_screen::setEnabled(enabled);
+            this->updateSecondScreenButton();
+            brls::Application::notify(enabled ? "wiliwili/player/second_screen_on"_i18n
+                                              : "wiliwili/player/second_screen_off"_i18n);
+            return true;
+        });
+        this->btnSecondScreenIcon->getParent()->addGestureRecognizer(
+            new brls::TapGestureRecognizer(this->btnSecondScreenIcon->getParent()));
+        this->updateSecondScreenButton();
+    }
 
     /// 播放器设置按钮
     auto settingFunc = [this](...) {
@@ -446,6 +497,7 @@ VideoView::VideoView() {
     this->registerAction(
         "cancel", brls::ControllerButton::BUTTON_B,
         [this](brls::View* view) -> bool {
+            if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::B)) return true;
             if (is_osd_lock) {
                 this->toggleOSD();
                 return true;
@@ -464,6 +516,7 @@ VideoView::VideoView() {
         true);
 
     this->registerAction("wiliwili/player/fs"_i18n, brls::ControllerButton::BUTTON_A, [this](brls::View* view) {
+        if (forwardSecondScreenGamepad(wiliwili::second_screen::GamepadKey::A)) return true;
         CHECK_OSD(false);
         if (this->isFullscreen()) {
             this->showOSD(true);
@@ -481,19 +534,52 @@ VideoView::VideoView() {
         return true;
     });
 
-    // TV模式下，全屏+OSD隐藏时，可以使用左右键直接调整进度
-    auto sliderFunc = [this](...) {
-        CHECK_OSD(true);
-        if (isTvControlMode && !isOSDShown() && isFullscreen()) {
-            this->showOSD(true);
-            this->is_osd_shown = true; // 直接标记为显示状态，避免在 onChildFocusGained 焦点又被转移
-            brls::Application::giveFocus(this->osdSlider);
-            this->osdSlider->setManuallyMode();
-        }
-        return false;
+    // TV模式下，全屏+OSD隐藏时，可以使用左右键直接调整进度。
+    // 双屏模式下方向键交给下屏做焦点导航。
+    auto sliderFunc = [this](wiliwili::second_screen::GamepadKey key) {
+        return [this, key](...) -> bool {
+            if (forwardSecondScreenGamepad(key)) return true;
+            CHECK_OSD(true);
+            if (isTvControlMode && !isOSDShown() && isFullscreen()) {
+                this->showOSD(true);
+                this->is_osd_shown = true; // 直接标记为显示状态，避免在 onChildFocusGained 焦点又被转移
+                brls::Application::giveFocus(this->osdSlider);
+                this->osdSlider->setManuallyMode();
+            }
+            return false;
+        };
     };
-    this->registerAction("", brls::ControllerButton::BUTTON_RIGHT, sliderFunc, true);
-    this->registerAction("", brls::ControllerButton::BUTTON_LEFT, sliderFunc, true);
+    this->registerAction("", brls::ControllerButton::BUTTON_RIGHT,
+                         sliderFunc(wiliwili::second_screen::GamepadKey::RIGHT), true, true);
+    this->registerAction("", brls::ControllerButton::BUTTON_LEFT,
+                         sliderFunc(wiliwili::second_screen::GamepadKey::LEFT), true, true);
+
+    auto navFunc = [](wiliwili::second_screen::GamepadKey key) {
+        return [key](brls::View*) -> bool { return forwardSecondScreenGamepad(key); };
+    };
+    // 方向键/摇杆的焦点导航事件是 NAV_*；左/右的原生动作已经负责转发，
+    // 这里只处理摇杆单独触发 NAV_* 的情况，避免同一次按键被转发两次。
+    auto navUnlessRaw = [](wiliwili::second_screen::GamepadKey key,
+                           brls::ControllerButton raw) {
+        return [key, raw](brls::View*) -> bool {
+            if (!wiliwili::second_screen::isEnabled()) return false;
+            auto& state = brls::Application::getControllerState();
+            if (!state.buttons[raw]) {
+                wiliwili::second_screen::pushGamepad(key);
+            }
+            return true;
+        };
+    };
+    this->registerAction("", brls::ControllerButton::BUTTON_NAV_LEFT,
+                         navUnlessRaw(wiliwili::second_screen::GamepadKey::LEFT,
+                                      brls::ControllerButton::BUTTON_LEFT), true, true);
+    this->registerAction("", brls::ControllerButton::BUTTON_NAV_RIGHT,
+                         navUnlessRaw(wiliwili::second_screen::GamepadKey::RIGHT,
+                                      brls::ControllerButton::BUTTON_RIGHT), true, true);
+    this->registerAction("", brls::ControllerButton::BUTTON_NAV_UP,
+                         navFunc(wiliwili::second_screen::GamepadKey::UP), true, true);
+    this->registerAction("", brls::ControllerButton::BUTTON_NAV_DOWN,
+                         navFunc(wiliwili::second_screen::GamepadKey::DOWN), true, true);
 
     // 自定义的mpv事件
     customEventSubscribeID = APP_E->subscribe([this](const std::string& event, void* data) {
@@ -618,6 +704,8 @@ void VideoView::requestSeeking(int seek, int delay) {
 
 VideoView::~VideoView() {
     brls::Logger::debug("trying delete VideoView...");
+    // 先置死令牌，再摘订阅：即使有订阅残留，回调也不会再碰已释放的对象
+    *this->aliveToken = false;
     this->unRegisterMpvEvent();
     APP_E->unsubscribe(customEventSubscribeID);
     brls::Logger::debug("Delete VideoView done");
@@ -628,19 +716,21 @@ void VideoView::draw(NVGcontext* vg, float x, float y, float width, float height
     if (!mpvCore->isValid()) return;
     float alpha        = this->getAlpha();
     brls::Time current = brls::getCPUTimeUsec();
-    bool drawOSD       = this->osd_state == OSDState::ALWAYS_ON || current < this->osdLastShowTime;
+    bool drawOSD       = !wiliwili::second_screen::isEnabled() &&
+                   (this->osd_state == OSDState::ALWAYS_ON || current < this->osdLastShowTime);
 
     // draw video
     mpvCore->draw(brls::Rect(x, y, width, height), alpha);
 
     // draw highlight progress
     // OSD绘制时，进度条也包含了高能进度条，避免太杂乱仅在不显示 OSD 时绘制
-    if (HIGHLIGHT_PROGRESS_BAR && (!drawOSD || is_osd_lock)) {
+    if (!wiliwili::second_screen::isEnabled() && HIGHLIGHT_PROGRESS_BAR &&
+        (!drawOSD || is_osd_lock)) {
         drawHighlightProgress(vg, x, y + height, width, alpha);
     }
 
     // draw bottom bar
-    if (BOTTOM_BAR && showBottomLineSetting) {
+    if (!wiliwili::second_screen::isEnabled() && BOTTOM_BAR && showBottomLineSetting) {
         bottomBarColor.a = alpha;
         float progress   = mpvCore->playback_time / getRealDuration();
         progress         = progress > 1.0f ? 1.0f : progress;
@@ -655,6 +745,11 @@ void VideoView::draw(NVGcontext* vg, float x, float y, float width, float height
         isLiveMode
             ? LiveDanmakuCore::instance().draw(vg, x, y, width, height, alpha)
             : DanmakuCore::instance().draw(vg, x, y, width, height, alpha);
+    }
+
+    // 双屏模式下 OSD 永远不显示，焦点若还停在上屏 OSD 子控件上则交还给视频
+    if (wiliwili::second_screen::isEnabled() && !is_osd_shown && isChildFocused()) {
+        brls::Application::giveFocus(this);
     }
 
     // draw osd
@@ -706,7 +801,8 @@ void VideoView::draw(NVGcontext* vg, float x, float y, float width, float height
     this->buttonProcessing();
 
     // draw speed hint
-    if (speedHintBox->getVisibility() == brls::Visibility::VISIBLE) {
+    if (!wiliwili::second_screen::isEnabled() &&
+        speedHintBox->getVisibility() == brls::Visibility::VISIBLE) {
         speedHintBox->frame(ctx);
         brls::Rect frame = speedHintLabel->getFrame();
 
@@ -737,7 +833,7 @@ void VideoView::draw(NVGcontext* vg, float x, float y, float width, float height
     osdCenterBox->frame(ctx);
 
     // draw thumbnail preview (shown when dragging the progress slider)
-    if (showThumbnailPreview) {
+    if (showThumbnailPreview && !wiliwili::second_screen::isEnabled()) {
         const float previewProgress = osdSlider->getProgress();
         VideoSnapshotCore::instance().draw(
             vg,
@@ -753,7 +849,7 @@ void VideoView::draw(NVGcontext* vg, float x, float y, float width, float height
     osdCenterBox2->frame(ctx);
 
     // draw video profile
-    videoProfile->frame(ctx);
+    if (!wiliwili::second_screen::isEnabled()) videoProfile->frame(ctx);
 }
 
 void VideoView::drawHighlightProgress(NVGcontext* vg, float x, float y, float width, float alpha) {
@@ -897,6 +993,13 @@ int64_t VideoView::getLastPlayedPosition() const { return lastPlayedPosition; }
 
 /// OSD
 void VideoView::showOSD(bool temp) {
+    this->updateSecondScreenButton();
+    // 双屏模式下上屏只保留视频，所有 OSD 操作由下屏完成
+    if (wiliwili::second_screen::isEnabled()) {
+        this->osdLastShowTime = 0;
+        this->osd_state       = OSDState::HIDDEN;
+        return;
+    }
     if (temp) {
         this->osdLastShowTime = brls::getCPUTimeUsec() + VideoView::OSD_SHOW_TIME * 1000;
         this->osd_state       = OSDState::SHOWN;
@@ -956,6 +1059,10 @@ void VideoView::toggleDanmaku() {
 }
 
 void VideoView::toggleOSD() {
+    if (wiliwili::second_screen::isEnabled()) {
+        this->hideOSD();
+        return;
+    }
     if (isOSDShown()) {
         this->hideOSD();
     } else {
@@ -1157,6 +1264,19 @@ void VideoView::setFullscreenIcon(bool fs) {
 
 brls::View* VideoView::getFullscreenIcon() { return btnFullscreenIcon; }
 
+void VideoView::updateSecondScreenButton() {
+    if (!this->btnSecondScreenIcon) return;
+    bool available = wiliwili::second_screen::isDisplayAvailable();
+    brls::Visibility visibility = available ? brls::Visibility::VISIBLE : brls::Visibility::GONE;
+    this->btnSecondScreenIcon->setVisibility(visibility);
+    this->btnSecondScreenIcon->getParent()->setVisibility(visibility);
+    if (!available) return;
+
+    bool enabled = wiliwili::second_screen::isEnabled();
+    this->btnSecondScreenIcon->setImageFromSVGRes(
+        enabled ? "svg/bpx-svg-sprite-second-screen-on.svg" : "svg/bpx-svg-sprite-second-screen-off.svg");
+}
+
 void VideoView::refreshDanmakuIcon() {
     if (DanmakuCore::DANMAKU_ON) {
         this->btnDanmakuIcon->setImageFromSVGRes("svg/bpx-svg-sprite-danmu-switch-on.svg");
@@ -1199,6 +1319,10 @@ void VideoView::setHighlightProgress(const VideoHighlightData& data) {
 
 void VideoView::showHint(const std::string& value) {
     brls::Logger::debug("Video hint: {}", value);
+    if (wiliwili::second_screen::isEnabled()) {
+        wiliwili::second_screen::pushStatus(value);
+        return;
+    }
     this->hintLabel->setText(value);
     this->hintBox->setVisibility(brls::Visibility::VISIBLE);
     this->hintLastShowTime = brls::getCPUTimeUsec() + VideoView::OSD_SHOW_TIME * 1000;
@@ -1432,6 +1556,8 @@ brls::View* VideoView::getNextFocus(brls::FocusDirection direction, View* curren
 }
 
 void VideoView::buttonProcessing() {
+    // 双屏模式下上屏不处理长按加速等隐藏 OSD 提示
+    if (wiliwili::second_screen::isEnabled()) return;
     // 获取按键数据
     auto state           = brls::Application::getControllerState();
     auto speedUpShortcut = ShortcutHelper::getVideoSpeedUp();
@@ -1542,9 +1668,14 @@ void VideoView::buttonProcessing() {
 
 void VideoView::registerMpvEvent() {
     if (registerMPVEvent) {
+        // 必须直接返回：继续 subscribe 会覆盖 eventSubscribeID，旧订阅将永久残留，
+        // VideoView 析构后仍会回调悬空的 this。
         brls::Logger::error("VideoView already register MPV Event");
+        return;
     }
-    eventSubscribeID = mpvCore->getEvent()->subscribe([this](MpvEventEnum event) {
+    auto alive = this->aliveToken;
+    eventSubscribeID = mpvCore->getEvent()->subscribe([this, alive](MpvEventEnum event) {
+        if (!*alive) return;
         // brls::Logger::info("mpv event => : {}", event);
         switch (event) {
             case MpvEventEnum::MPV_IDLE:
@@ -1595,7 +1726,7 @@ void VideoView::registerMpvEvent() {
                 if (fabs(mpvCore->video_speed - 1) < 1e-5) {
                     this->videoSpeed->setText("wiliwili/player/speed"_i18n);
                 } else {
-                    this->videoSpeed->setText(fmt::format("{}x", mpvCore->video_speed));
+                    this->videoSpeed->setText(fmt::format("{:.6g}x", mpvCore->video_speed));
                 }
                 break;
             case MpvEventEnum::END_OF_FILE:

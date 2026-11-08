@@ -30,7 +30,8 @@
         "video_format": "影像格式",
         "dolby": "杜比全景聲",
         "hi_res": "Hi-Res 無損",
-        "window_fullscreen_on_app_fullscreen": "應用內全屏時自動切換視窗全屏"
+        "window_fullscreen_on_app_fullscreen": "應用內全屏時自動切換視窗全屏",
+        "second_screen": "雙屏模式（副屏顯示評論與控制）"
       },
       "image": {
         "header": "圖片設定",
@@ -480,7 +481,9 @@
       "related": "總共{}個答覆",
       "end": "沒有更多的評論",
       "delete": "删除評論後，將删除評論下的所有回復\n\n是否要繼續？"
-    }
+    },
+    "second_screen_on": "副屏已開啟",
+    "second_screen_off": "副屏已關閉"
   },
   "dialog": {
     "not_supported": "不支援此功能",

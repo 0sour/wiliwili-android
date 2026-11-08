@@ -18,6 +18,7 @@
 #include "fragment/setting_network.hpp"
 #include "fragment/test_rumble.hpp"
 #include "utils/config_helper.hpp"
+#include "utils/second_screen.hpp"
 #include "utils/vibration_helper.hpp"
 #include "utils/dialog_helper.hpp"
 #include "utils/activity_helper.hpp"
@@ -703,6 +704,21 @@ void SettingActivity::onContentAvailable() {
                             conf.getBoolOption(SettingItem::PLAYER_AUTO_FULLSCREEN), [](bool value) {
                                 ProgramConfig::instance().setSettingItem(SettingItem::PLAYER_AUTO_FULLSCREEN, value);
                             });
+
+    /// Dual-screen mode (only on devices with a Presentation display)
+    if (!this->btnSecondScreen) {
+        // custom themes may omit the cell
+    } else if (!wiliwili::second_screen::isDisplayAvailable()) {
+        btnSecondScreen->setVisibility(brls::Visibility::GONE);
+    } else {
+        btnSecondScreen->init("wiliwili/setting/app/playback/second_screen"_i18n,
+                              conf.getBoolOption(SettingItem::PLAYER_SECOND_SCREEN), [](bool value) {
+                                  wiliwili::second_screen::setEnabled(value);
+                                  brls::Application::notify(
+                                      value ? "wiliwili/player/second_screen_on"_i18n
+                                            : "wiliwili/player/second_screen_off"_i18n);
+                              });
+    }
 
     /// Decode quality
     btnQuality->init("wiliwili/setting/app/playback/low_quality"_i18n,

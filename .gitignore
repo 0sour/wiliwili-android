@@ -28,8 +28,12 @@ build-*
 /mpv-deps/
 android-project/app/libs/
 android-project/app/.cxx/
-android-project/app/wiliwili.jks
 android-project/local.properties
+
+# Release artifacts (APKs live in GitHub Releases, not in the repo)
+/dist/
+*.apk
+
 # Github Copilot
 .github/copilot-instructions.md
 .github/instructions/
@@ -40,3 +44,5 @@ android-project/local.properties
 CLAUDE.md
 # Other AI
 AGENT.md
+libromfs-generator.exe
+

@@ -30,7 +30,8 @@
         "video_format": "動画ぬ形式",
         "window_fullscreen_on_app_fullscreen": "アプリ内全画面時にウィンドウを全画面にする",
         "dolby": "Dolby Atmos",
-        "hi_res": "Hi-Res"
+        "hi_res": "Hi-Res",
+        "second_screen": "デュアルスクリーンモード（2画面目にコメントと操作を表示）"
       },
       "image": {
         "header": "画像",
@@ -480,7 +481,9 @@
       "related": "{} 件ぬ返信",
       "end": "コメントーあいびらん",
       "delete": "コメント削除しーねー、コメントぬしちゃぬまじりぬ返信ぬ削除さりやびーん\n\n続きやびーが？"
-    }
+    },
+    "second_screen_on": "サブ画面を有効にしました",
+    "second_screen_off": "サブ画面を無効にしました"
   },
   "dialog": {
     "not_supported": "サポートされていません",

@@ -23,6 +23,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Apply Android submodule patches
+        run: bash scripts/apply_android_patches.sh
+
       - name: Install host build tools
         run: |
           sudo apt-get update
@@ -37,13 +40,8 @@ jobs:
       - name: Prepare prebuilt libmpv
         run: bash .ci/prepare_mpv.sh
 
-      - name: Create signing keystore
-        run: |
-          keytool -genkeypair -v \
-            -keystore android-project/app/wiliwili.jks -storetype JKS \
-            -storepass wiliwili -keypass wiliwili \
-            -alias wiliwili -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=wiliwili-android, OU=wiliwili, O=wiliwili, L=NA, S=NA, C=CN"
+      - name: Verify release keystore
+        run: test -f android-project/app/wiliwili.jks
 
       - name: Build release APK
         working-directory: android-project
